@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct FlightDeckApp: App {
-    @StateObject private var settings = SettingsStore()
+    @StateObject private var settings: SettingsStore
     @StateObject private var flightStore: FlightStore
 
     init() {

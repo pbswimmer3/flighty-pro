@@ -1,31 +1,42 @@
 import Foundation
-import SwiftUI
+import Combine
 
-/// User settings, persisted to UserDefaults.
+/// User settings, persisted to UserDefaults via @Published + didSet
+/// (rather than @AppStorage, which doesn't publish changes reliably from
+/// inside an ObservableObject).
+///
 /// Note: the API key would ideally live in the Keychain; UserDefaults keeps
 /// the project dependency-free and is acceptable for a personal-use app
 /// (documented trade-off in the README).
 final class SettingsStore: ObservableObject {
-    @AppStorage("demoMode") var demoMode: Bool = true
-    @AppStorage("aeroDataBoxKey") var aeroDataBoxKey: String = ""
-    @AppStorage("favoriteAirports") private var favoriteAirportsRaw: String = "SFO,JFK,LHR"
+    private let defaults = UserDefaults.standard
 
-    var favoriteAirports: [String] {
-        get { favoriteAirportsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty } }
-        set {
-            favoriteAirportsRaw = newValue.joined(separator: ",")
-            objectWillChange.send()
-        }
+    @Published var demoMode: Bool {
+        didSet { defaults.set(demoMode, forKey: "demoMode") }
+    }
+
+    @Published var aeroDataBoxKey: String {
+        didSet { defaults.set(aeroDataBoxKey, forKey: "aeroDataBoxKey") }
+    }
+
+    @Published var favoriteAirports: [String] {
+        didSet { defaults.set(favoriteAirports, forKey: "favoriteAirports") }
+    }
+
+    init() {
+        demoMode = defaults.object(forKey: "demoMode") == nil
+            ? true
+            : defaults.bool(forKey: "demoMode")
+        aeroDataBoxKey = defaults.string(forKey: "aeroDataBoxKey") ?? ""
+        favoriteAirports = defaults.stringArray(forKey: "favoriteAirports") ?? ["SFO", "JFK", "LHR"]
     }
 
     func toggleFavorite(_ iata: String) {
-        var favs = favoriteAirports
-        if let idx = favs.firstIndex(of: iata) {
-            favs.remove(at: idx)
+        if let idx = favoriteAirports.firstIndex(of: iata) {
+            favoriteAirports.remove(at: idx)
         } else {
-            favs.append(iata)
+            favoriteAirports.append(iata)
         }
-        favoriteAirports = favs
     }
 
     func isFavorite(_ iata: String) -> Bool { favoriteAirports.contains(iata) }

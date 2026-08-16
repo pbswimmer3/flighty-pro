@@ -16,6 +16,7 @@ struct AirportDetailView: View {
             VStack(spacing: 14) {
                 header
                 statusCard
+                trafficCard
                 weatherCard
                 mapCard
                 factsCard
@@ -161,6 +162,37 @@ struct AirportDetailView: View {
             }
         }
         .cardStyle()
+    }
+
+    // MARK: Live traffic
+
+    private var trafficCard: some View {
+        NavigationLink {
+            AirportTrafficView(airport: airport)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "dot.radiowaves.up.forward")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Theme.cyan)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Live Traffic")
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Aircraft on the taxiways and in the air around \(airport.iata), moving in real time.")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .cardStyle()
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Map & facts

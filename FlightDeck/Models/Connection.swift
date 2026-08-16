@@ -1,8 +1,20 @@
 import Foundation
 import SwiftUI
 
+/// Shared thresholds for what counts as a connection at all. Detection and
+/// risk scoring both read these so they can't drift apart.
+enum ConnectionRules {
+    /// Below this the two legs are the same turn, not a connection.
+    static let minGapMinutes = 20
+
+    /// Above this it's a stopover: the traveller leaves the gate area, and
+    /// minimum-connection-time math no longer describes the risk.
+    static let maxConnectionMinutes = 6 * 60
+}
+
 /// Risk rating for a connection, mirroring Flighty's four buckets.
 enum ConnectionRisk: String, CaseIterable {
+    case longLayover = "Long layover"
     case relaxed = "Relaxed"
     case normal = "Normal"
     case tight = "Tight"
@@ -11,6 +23,7 @@ enum ConnectionRisk: String, CaseIterable {
 
     var color: Color {
         switch self {
+        case .longLayover: return Theme.cyan
         case .relaxed: return Theme.green
         case .normal: return Theme.accent
         case .tight: return Theme.orange
@@ -21,6 +34,7 @@ enum ConnectionRisk: String, CaseIterable {
 
     var explanation: String {
         switch self {
+        case .longLayover: return "Long enough to leave the airport — this is a stopover, not a connection to rush."
         case .relaxed: return "Plenty of buffer — grab a coffee."
         case .normal: return "A comfortable connection under normal conditions."
         case .tight: return "Doable, but head straight to your next gate."
@@ -76,6 +90,10 @@ struct ConnectionAssessment {
         if m < mct { return .risky }
         if m < mct + 30 { return .tight }
         if m < mct + 90 { return .normal }
+        // Past a few hours the MCT math stops meaning anything — a half-day
+        // gap is a stopover, and calling it "relaxed" reads as a rushed
+        // connection that happens to be fine.
+        if m >= ConnectionRules.maxConnectionMinutes { return .longLayover }
         return .relaxed
     }
 

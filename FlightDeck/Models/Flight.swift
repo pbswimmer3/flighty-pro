@@ -103,12 +103,16 @@ struct Flight: Identifiable, Codable, Hashable {
     var duration: TimeInterval { bestArrival.timeIntervalSince(bestDeparture) }
 
     /// 0…1 progress along the flight based on the current clock.
-    var progress: Double {
+    var progress: Double { progress(at: .now) }
+
+    /// Progress at an arbitrary instant — lets a display-linked clock advance
+    /// the plane smoothly instead of only on refresh.
+    func progress(at date: Date) -> Double {
         if phase.isComplete { return 1 }
         if phase == .cancelled { return 0 }
         let start = bestDeparture, end = bestArrival
         guard end > start else { return 0 }
-        let p = Date.now.timeIntervalSince(start) / end.timeIntervalSince(start)
+        let p = date.timeIntervalSince(start) / end.timeIntervalSince(start)
         return min(max(p, 0), 1)
     }
 

@@ -9,6 +9,8 @@ struct FlightDetailView: View {
     @State private var signals: [IntelSignal] = []
     @State private var originMetar: Metar?
     @State private var destinationMetar: Metar?
+    /// Owned here so both the map and the traffic link see the same live track.
+    @StateObject private var tracker = AircraftTracker()
 
     private var flight: Flight? {
         store.flights.first { $0.id == flightID }
@@ -29,11 +31,12 @@ struct FlightDetailView: View {
     private func content(_ flight: Flight) -> some View {
         ScrollView {
             VStack(spacing: 14) {
-                FlightMapView(flight: flight)
+                FlightMapView(flight: flight, tracker: tracker)
                     .frame(height: 260)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 statusBanner(flight)
+                nearbyTrafficLink(flight)
                 intelCard
                 timelineCard(flight)
                 endpointCard(flight, isDeparture: true)
@@ -112,6 +115,56 @@ struct FlightDetailView: View {
         case .landed, .arrived: return Theme.green
         default: return flight.isDelayed ? Theme.orange : Theme.accent
         }
+    }
+
+    // MARK: Nearby traffic
+
+    /// Only offered once we actually have the airframe on ADS-B — otherwise
+    /// there's no "your aircraft" to centre on.
+    @ViewBuilder
+    private func nearbyTrafficLink(_ flight: Flight) -> some View {
+        if let track = tracker.track {
+            NavigationLink {
+                NearbyTrafficView(flight: flight, tracker: tracker)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "dot.radiowaves.up.forward")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Theme.cyan)
+                        .frame(width: 26)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Traffic near your aircraft")
+                            .font(.system(size: 15, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(trackSummary(track))
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .cardStyle()
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func trackSummary(_ track: TrafficStore.Track) -> String {
+        var parts: [String] = []
+        if let altitude = track.report.altitudeFeet {
+            parts.append("\(altitude) ft")
+        } else if track.report.onGround {
+            parts.append("On the ground")
+        }
+        if let speed = track.report.groundSpeedKts {
+            parts.append("\(Int(speed)) kt")
+        }
+        if let accuracy = track.report.accuracyMetres {
+            parts.append("±\(Int(accuracy)) m")
+        }
+        return parts.isEmpty ? "Live ADS-B contact" : parts.joined(separator: " · ")
     }
 
     // MARK: Intel signals

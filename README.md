@@ -53,9 +53,46 @@ Built against the checklist in [`plan.md`](plan.md).
     public feed exists); non-US airports say so honestly.
   - **Weather** — decoded METAR: flight category pill, temperature, wind,
     visibility, ceiling, and the raw METAR string for avgeeks.
+  - **Live Traffic** — see below.
   - Satellite map, local time, terminal overview, and the airport's minimum
     connection times.
 - Favorites (star an airport to pin it).
+
+### 2b. Live Traffic (ADS-B)
+Every aircraft adsb.lol can see around an airport or around your own flight,
+drawn on satellite imagery and animated as continuous motion.
+
+- **Ground scope** (3 nm, satellite) is the interesting one: aircraft report
+  their own GNSS position with a stated accuracy of 10–30 m, which is fine
+  enough to read **which aircraft are ahead of you in the departure queue** and
+  roughly where on the pavement they sit. Movers are labelled with callsign and
+  taxi speed; parked aircraft are dimmed.
+- **Nearby scope** (25 nm) shows airborne traffic coloured by altitude band.
+- **Traffic near your aircraft** appears on the flight page once your airframe
+  is found on ADS-B, with its accuracy ring drawn.
+
+**How the motion works.** The feed is discrete and irregular — position fixes in
+a single response range from a fraction of a second to tens of seconds old. So
+nothing is bound directly to received positions. Each aircraft keeps a kinematic
+state (position, track, ground speed, and the instant that state was true), and
+a display-linked clock integrates it forward every frame. When a new fix lands
+the icon *eases* onto it over ~0.6 s instead of snapping, blending heading the
+short way around the compass.
+
+The rendered position is therefore an **estimate, not a report**, so:
+extrapolation freezes after 30 s and the icon fades, targets are dropped at
+60 s, and aircraft reporting zero ground speed are never extrapolated (parked
+aircraft would otherwise creep across the apron on floating-point noise).
+
+Polling stays slow on purpose — 3 s on the ground, 5 s in the air, halved in Low
+Power Mode, and **stopped entirely when the app is backgrounded**. Smoothness
+comes from extrapolation, not from polling harder; polling harder would only
+cost battery and rate limit.
+
+> Coverage is volunteer-fed, so it's good at major hubs and can be absent at
+> smaller or non-US fields — the UI says "no coverage here" rather than
+> implying an empty sky. This is not an ATC tool and must never be used for
+> separation or navigation.
 
 ### 3. Connection Assistant
 - **Auto-detects connections** in your tracked flights (leg 1 arrives where
@@ -238,8 +275,9 @@ No paid Apple Developer account required.
 > extends this to a year.
 
 ### Simulator
-Everything except live ADS-B positions is equally happy in the iOS Simulator:
-choose any iPhone simulator instead of a device and press ⌘R.
+Everything works in the iOS Simulator, including Live Traffic — it's a plain
+network call, so the simulator sees the same real aircraft your phone would.
+Choose any iPhone simulator instead of a device and press ⌘R.
 
 ---
 

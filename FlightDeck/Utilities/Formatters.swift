@@ -37,6 +37,14 @@ enum Fmt {
         return span
     }
 
+    /// "just now" / "4s ago" / "2m ago" — freshness of a live data sample.
+    static func secondsAgo(_ date: Date) -> String {
+        let seconds = Int(Date.now.timeIntervalSince(date))
+        if seconds < 2 { return "just now" }
+        if seconds < 60 { return "\(seconds)s ago" }
+        return "\(seconds / 60)m ago"
+    }
+
     static func relative(_ date: Date) -> String {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated

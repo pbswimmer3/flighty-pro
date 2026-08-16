@@ -104,14 +104,17 @@ final class FlightStore: ObservableObject {
     // MARK: - Connection detection
 
     /// Flight pairs that look like connections: leg 1 arrives where leg 2
-    /// departs, with a 20 min – 24 h gap.
+    /// departs, within the gap window in `ConnectionRules`. The upper bound
+    /// matters — without it an overnight stay in a city reads as a layover.
     var detectedConnections: [(inbound: Flight, outbound: Flight)] {
         var pairs: [(Flight, Flight)] = []
+        let minGap = TimeInterval(ConnectionRules.minGapMinutes * 60)
+        let maxGap = TimeInterval(ConnectionRules.maxConnectionMinutes * 60)
         let sorted = flights.sorted { $0.scheduledDeparture < $1.scheduledDeparture }
         for (i, a) in sorted.enumerated() {
             for b in sorted.dropFirst(i + 1) {
                 let gap = b.scheduledDeparture.timeIntervalSince(a.scheduledArrival)
-                if a.destinationIATA == b.originIATA, gap > 20 * 60, gap < 24 * 3600 {
+                if a.destinationIATA == b.originIATA, gap > minGap, gap <= maxGap {
                     pairs.append((a, b))
                 }
             }

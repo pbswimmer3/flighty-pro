@@ -90,10 +90,14 @@ struct FlightCard: View {
                         .strikethrough()
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.textTertiary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 Text(Fmt.time(best, airportIATA: iata))
                     .font(.system(size: 16, weight: .heavy, design: .rounded))
                     .foregroundStyle(changed ? Theme.orange : Theme.textPrimary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             Text(label)
                 .font(.system(size: 11, weight: .medium, design: .rounded))

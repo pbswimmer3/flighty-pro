@@ -80,6 +80,22 @@ Legend: `[ ]` todo · `[x]` done
 - [x] Final review pass over all Swift files (API misuse, decoding safety)
 - [x] Commit + push
 
+## Phase 7 — Live traffic & smooth aircraft motion
+Research and design in [`docs/live-traffic-plan.md`](docs/live-traffic-plan.md).
+- [x] Fix latent ADS-B bug: surface aircraft report `true_heading`, not `track`,
+      so tracked planes silently lost their rotation on touchdown
+- [x] `TrafficService` — adsb.lol radius search; `TrafficReport` model with
+      NACp-derived accuracy and lenient per-aircraft decoding
+- [x] `DeadReckoning` — kinematic state, WGS-84 forward projection, easing
+      reconciliation, shortest-path heading blend, staleness caps
+- [x] `TrafficStore` / `AircraftTracker` — polling, reconciliation, grace-period
+      removal; stop on background, halve rate in Low Power Mode
+- [x] `LiveTrafficMapView` — one display-clock-driven `Canvas` overlay rather
+      than per-aircraft annotations; altitude colouring, stale fading,
+      collision-avoided labels, confidence ring for own aircraft
+- [x] Airport ground view (queue-readable at 3 nm) and traffic near own aircraft
+- [x] Verified in simulator; engine covered by 24 checks
+
 ## Explicitly out of scope
 - Flighty Friends / social features, shared trips
 - Push notifications (needs paid Apple Developer account + server); delay

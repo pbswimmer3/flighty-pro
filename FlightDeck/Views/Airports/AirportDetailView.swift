@@ -176,10 +176,12 @@ struct AirportDetailView: View {
                     .foregroundStyle(Theme.cyan)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Live Traffic")
+                    Text("Airport-Wide Traffic")
                         .font(.system(size: 15, weight: .heavy, design: .rounded))
                         .foregroundStyle(Theme.textPrimary)
-                    Text("Aircraft on the taxiways and in the air around \(airport.iata), moving in real time.")
+                    // To watch your own aircraft, open the flight itself — this
+                    // screen is for the whole field, not one flight.
+                    Text("Everything on the taxiways and in the air around \(airport.iata). For your own flight, open it from the Flights tab.")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

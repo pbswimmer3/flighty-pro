@@ -180,27 +180,8 @@ struct LiveTrafficMapView: View {
                             heading: Double,
                             hasHeading: Bool,
                             style: TrafficSymbol) {
-        context.drawLayer { layer in
-            layer.translateBy(x: point.x, y: point.y)
-            layer.opacity = style.opacity
-
-            guard hasHeading else {
-                // No heading in the report — a rotated symbol would be a claim
-                // we can't support, so draw an unoriented dot instead.
-                let r = style.size * 0.45
-                layer.fill(Path(ellipseIn: CGRect(x: -r, y: -r, width: r * 2, height: r * 2)),
-                           with: .color(style.color))
-                return
-            }
-
-            layer.rotate(by: .degrees(heading))
-            let path = Self.aircraftPath(size: style.size)
-            layer.fill(path, with: .color(style.color))
-            layer.stroke(path, with: .color(.black.opacity(0.55)), lineWidth: 0.75)
-            if style.isOwn {
-                layer.stroke(path, with: .color(.white), lineWidth: 1.5)
-            }
-        }
+        AircraftGlyph.draw(&context, at: point, heading: heading,
+                           hasHeading: hasHeading, style: style)
     }
 
     /// Confidence radius from NACp, for the user's own aircraft only — on every
@@ -218,17 +199,6 @@ struct LiveTrafficMapView: View {
                           width: radius * 2, height: radius * 2)
         context.fill(Path(ellipseIn: rect), with: .color(Theme.accent.opacity(0.12)))
         context.stroke(Path(ellipseIn: rect), with: .color(Theme.accent.opacity(0.5)), lineWidth: 1)
-    }
-
-    /// A delta pointing at 0° (north), rotated to heading at draw time.
-    private static func aircraftPath(size s: CGFloat) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: -s))
-        path.addLine(to: CGPoint(x: s * 0.62, y: s * 0.75))
-        path.addLine(to: CGPoint(x: 0, y: s * 0.35))
-        path.addLine(to: CGPoint(x: -s * 0.62, y: s * 0.75))
-        path.closeSubpath()
-        return path
     }
 
     // MARK: - Chrome
@@ -322,5 +292,15 @@ struct TrafficSymbol {
         var alpha = report.isMLAT ? 0.65 : 1.0
         if isStale { alpha *= 0.35 }
         opacity = alpha
+    }
+
+    /// The user's own aircraft on the flight tracking map. Has its own
+    /// initialiser because it's sometimes drawn from a route estimate, where
+    /// there is no ADS-B report to derive a style from.
+    init(own isStale: Bool) {
+        isOwn = true
+        color = .white
+        size = 14
+        opacity = isStale ? 0.45 : 1
     }
 }

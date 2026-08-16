@@ -32,12 +32,18 @@ struct FlightMapView: View {
             }
         }
         .onAppear { startTracking() }
-        .onDisappear { tracker.stop() }
         .onChange(of: flight.id) { _, _ in startTracking() }
         .onChange(of: scenePhase) { _, phase in
             phase == .active ? startTracking() : tracker.stop()
         }
     }
+
+    // Note: deliberately no `onDisappear { tracker.stop() }`. Pushing the
+    // full-screen tracking map makes this view disappear, and stopping the
+    // poll there would drop the live track exactly when the user asked to
+    // watch it. The tracker is owned by `FlightDetailView` as a `@StateObject`,
+    // so it's cancelled in `deinit` when the flight page is popped — which is
+    // the lifetime we actually want.
 
     /// Live position is only worth polling for a real flight that's actually
     /// flying — demo flights have no airframe to find.

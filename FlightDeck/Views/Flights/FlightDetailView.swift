@@ -1,15 +1,25 @@
 import SwiftUI
 
-/// Full flight page: map header, status banner, delay-intel signals,
-/// event timeline, departure/arrival cards, aircraft, inbound plane, weather.
+/// Full flight page: live map header that opens into tracking, status banner,
+/// arrival forecast, delay-intel signals, event timeline, departure/arrival
+/// cards, aircraft, inbound plane, weather.
 struct FlightDetailView: View {
     @EnvironmentObject private var store: FlightStore
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var history: DelayHistoryStore
     let flightID: UUID
 
     @State private var signals: [IntelSignal] = []
     @State private var originMetar: Metar?
     @State private var destinationMetar: Metar?
-    /// Owned here so both the map and the traffic link see the same live track.
+    @State private var originEvents: [AirportEvent] = []
+    @State private var destinationEvents: [AirportEvent] = []
+    @State private var forecast: ArrivalForecast?
+    @State private var isBuildingForecast = false
+    @State private var seatDraft = ""
+    /// Owned here so the map header, the tracking screen and the traffic view
+    /// all read the same live track — and so the poll is cancelled when this
+    /// page is popped, not when it's merely covered by a pushed view.
     @StateObject private var tracker = AircraftTracker()
 
     private var flight: Flight? {
@@ -31,12 +41,9 @@ struct FlightDetailView: View {
     private func content(_ flight: Flight) -> some View {
         ScrollView {
             VStack(spacing: 14) {
-                FlightMapView(flight: flight, tracker: tracker)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
+                mapHeader(flight)
                 statusBanner(flight)
-                nearbyTrafficLink(flight)
+                forecastCard(flight)
                 intelCard
                 timelineCard(flight)
                 endpointCard(flight, isDeparture: true)
@@ -55,8 +62,51 @@ struct FlightDetailView: View {
             await loadIntel(flight)
         }
         .task(id: flight.lastUpdated) {
+            seatDraft = flight.seat ?? ""
             await loadIntel(flight)
+            await backfillHistory(flight)
+            rebuildForecast(flight)
         }
+        .onDisappear { commitSeat(flight) }
+    }
+
+    // MARK: - Map header → tracking
+
+    /// The map is the entry point to tracking. Tapping the flight gets you to
+    /// your aircraft on its route; you never have to go via an airport page.
+    private func mapHeader(_ flight: Flight) -> some View {
+        NavigationLink {
+            FlightTrackingMapView(flight: flight, tracker: tracker)
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                FlightMapView(flight: flight, tracker: tracker)
+                    .frame(height: 260)
+                    .allowsHitTesting(false)   // the whole header is one tap target
+
+                HStack(spacing: 6) {
+                    Image(systemName: "dot.radiowaves.up.forward")
+                        .font(.system(size: 11, weight: .bold))
+                    Text(trackingPrompt(flight))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Theme.accent.opacity(0.92), in: Capsule())
+                .padding(12)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func trackingPrompt(_ flight: Flight) -> String {
+        if tracker.track != nil { return "Track live · traffic around you" }
+        if flight.effectivePhase.isAirborne { return "Track this flight" }
+        if flight.effectivePhase.isComplete { return "See traffic at \(flight.destinationIATA)" }
+        return "See traffic at \(flight.originIATA)"
     }
 
     // MARK: Status banner
@@ -117,54 +167,21 @@ struct FlightDetailView: View {
         }
     }
 
-    // MARK: Nearby traffic
+    // MARK: Arrival forecast
 
-    /// Only offered once we actually have the airframe on ADS-B — otherwise
-    /// there's no "your aircraft" to centre on.
     @ViewBuilder
-    private func nearbyTrafficLink(_ flight: Flight) -> some View {
-        if let track = tracker.track {
-            NavigationLink {
-                NearbyTrafficView(flight: flight, tracker: tracker)
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "dot.radiowaves.up.forward")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Theme.cyan)
-                        .frame(width: 26)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Traffic near your aircraft")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text(trackSummary(track))
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Theme.textTertiary)
-                }
-                .cardStyle()
+    private func forecastCard(_ flight: Flight) -> some View {
+        if let forecast {
+            ArrivalForecastCard(flight: flight, forecast: forecast)
+        } else if isBuildingForecast {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Building arrival forecast from the last \(DelayObservation.analysisWindowDays) days…")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.textSecondary)
             }
-            .buttonStyle(.plain)
+            .cardStyle()
         }
-    }
-
-    private func trackSummary(_ track: TrafficStore.Track) -> String {
-        var parts: [String] = []
-        if let altitude = track.report.altitudeFeet {
-            parts.append("\(altitude) ft")
-        } else if track.report.onGround {
-            parts.append("On the ground")
-        }
-        if let speed = track.report.groundSpeedKts {
-            parts.append("\(Int(speed)) kt")
-        }
-        if let accuracy = track.report.accuracyMetres {
-            parts.append("±\(Int(accuracy)) m")
-        }
-        return parts.isEmpty ? "Live ADS-B contact" : parts.joined(separator: " · ")
     }
 
     // MARK: Intel signals
@@ -336,25 +353,45 @@ struct FlightDetailView: View {
 
     // MARK: Aircraft
 
-    @ViewBuilder
     private func aircraftCard(_ flight: Flight) -> some View {
-        if flight.aircraftModel != nil || flight.registration != nil {
-            VStack(alignment: .leading, spacing: 10) {
-                SectionHeader(title: "Aircraft", systemImage: "airplane.circle")
-                if let model = flight.aircraftModel {
-                    InfoRow(label: "Type", value: model)
-                }
-                if let reg = flight.registration {
-                    InfoRow(label: "Registration", value: reg)
-                }
-                if let origin = AirportDatabase.shared.airport(iata: flight.originIATA),
-                   let dest = AirportDatabase.shared.airport(iata: flight.destinationIATA) {
-                    InfoRow(label: "Route distance",
-                            value: "\(Int(GreatCircle.distanceMiles(from: origin.coordinate, to: dest.coordinate))) mi")
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Aircraft", systemImage: "airplane.circle")
+            if let model = flight.aircraftType {
+                InfoRow(label: "Type", value: model)
             }
-            .cardStyle()
+            if let reg = flight.tailNumber {
+                InfoRow(label: "Registration", value: reg)
+            }
+            if let origin = AirportDatabase.shared.airport(iata: flight.originIATA),
+               let dest = AirportDatabase.shared.airport(iata: flight.destinationIATA) {
+                InfoRow(label: "Route distance",
+                        value: "\(Fmt.grouped(GreatCircle.distanceMiles(from: origin.coordinate, to: dest.coordinate))) mi")
+            }
+
+            // Seat is the one detail no provider knows, and the Passport's
+            // "top seat" stat is only as good as what gets typed here.
+            HStack {
+                Text("Seat")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer()
+                TextField("Add", text: $seatDraft)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .multilineTextAlignment(.trailing)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .frame(width: 90)
+                    .onSubmit { commitSeat(flight) }
+            }
+            .padding(.vertical, 2)
         }
+        .cardStyle()
+    }
+
+    private func commitSeat(_ flight: Flight) {
+        let trimmed = seatDraft.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard trimmed != (flight.seat ?? "") else { return }
+        store.setSeat(trimmed, for: flight)
     }
 
     // MARK: Weather
@@ -399,15 +436,58 @@ struct FlightDetailView: View {
         }
     }
 
-    // MARK: Data loading
+    // MARK: - Data loading
 
     private func loadIntel(_ flight: Flight) async {
         signals = await FlightIntel.signals(for: flight)
+
         if let origin = AirportDatabase.shared.airport(iata: flight.originIATA) {
             originMetar = await WeatherService.shared.metar(for: origin)
+            originEvents = origin.isUS ? await FAAStatusService.shared.events(for: origin.iata) : []
         }
         if let dest = AirportDatabase.shared.airport(iata: flight.destinationIATA) {
             destinationMetar = await WeatherService.shared.metar(for: dest)
+            destinationEvents = dest.isUS ? await FAAStatusService.shared.events(for: dest.iata) : []
         }
+        rebuildForecast(flight)
+    }
+
+    /// Pull recent punctuality for this route into the history store so the
+    /// forecast has something to work from. Cheap on repeat visits: the store
+    /// remembers when a route was last scanned.
+    private func backfillHistory(_ flight: Flight) async {
+        guard !flight.hasFlown(), flight.phase != .cancelled else { return }
+        guard history.needsBackfill(originIATA: flight.originIATA,
+                                    destinationIATA: flight.destinationIATA) else { return }
+
+        isBuildingForecast = true
+        defer { isBuildingForecast = false }
+
+        let isDemo = settings.demoMode || settings.aeroDataBoxKey.isEmpty
+        let backfill = DelayHistoryBackfill(provider: settings.provider, isDemo: isDemo)
+        let observations = await backfill.observations(for: flight)
+        guard !Task.isCancelled else { return }
+
+        history.ingest(observations)
+        history.markBackfilled(originIATA: flight.originIATA,
+                               destinationIATA: flight.destinationIATA)
+    }
+
+    private func rebuildForecast(_ flight: Flight) {
+        let context = ForecastContext(
+            inboundDelayMinutes: flight.inbound?.delayMinutes ?? 0,
+            originEvents: originEvents,
+            destinationEvents: destinationEvents,
+            originIsIFR: isLowVisibility(originMetar),
+            destinationIsIFR: isLowVisibility(destinationMetar))
+
+        forecast = ArrivalForecaster.forecast(for: flight,
+                                              history: history.window(),
+                                              context: context)
+    }
+
+    private func isLowVisibility(_ metar: Metar?) -> Bool {
+        guard let category = metar?.fltCat?.uppercased() else { return false }
+        return category == "IFR" || category == "LIFR"
     }
 }

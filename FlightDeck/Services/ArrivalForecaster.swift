@@ -3,7 +3,7 @@ import Foundation
 /// A probabilistic answer to "will this land on time, and when?"
 struct ArrivalForecast {
 
-    enum Stage {
+    enum Stage: Equatable {
         /// Still on the ground at the origin — the forecast is a frequency
         /// statement about how this route usually behaves.
         case beforeDeparture

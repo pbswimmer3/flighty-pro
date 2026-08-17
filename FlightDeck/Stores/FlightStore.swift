@@ -8,23 +8,48 @@ final class FlightStore: ObservableObject {
     @Published private(set) var flights: [Flight] = []
     @Published var lastRefresh: Date?
 
-    private let settings: SettingsStore
-    private var refreshTimer: Timer?
+    /// Advanced on a timer purely so time-based sectioning re-renders. Without
+    /// it a flight that crosses its archive threshold while the app sits open
+    /// would stay in Today until something else happened to publish a change.
+    @Published private(set) var clock: Date = .now
 
-    init(settings: SettingsStore) {
+    private let settings: SettingsStore
+    private let history: DelayHistoryStore
+    private var refreshTimer: Timer?
+    private var clockTimer: Timer?
+
+    init(settings: SettingsStore, history: DelayHistoryStore) {
         self.settings = settings
+        self.history = history
         load()
         if flights.isEmpty && settings.demoMode {
             flights = DemoFlightProvider.sampleFlights()
             save()
         }
+        recordCompletedFlights()
+
         // Re-evaluate live flights every 90 seconds while the app is open.
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 90, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refreshActive() }
         }
+        // Half-minute resolution on the "30 minutes after landing" rule is
+        // plenty, and costs nothing.
+        clockTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
     }
 
-    deinit { refreshTimer?.invalidate() }
+    deinit {
+        refreshTimer?.invalidate()
+        clockTimer?.invalidate()
+    }
+
+    /// Publish a new instant and sweep any flight that just finished into the
+    /// punctuality record.
+    private func tick() {
+        clock = .now
+        recordCompletedFlights()
+    }
 
     // MARK: - Mutations
 
@@ -38,6 +63,21 @@ final class FlightStore: ObservableObject {
     func remove(_ flight: Flight) {
         flights.removeAll { $0.id == flight.id }
         save()
+    }
+
+    /// Replace a flight in place — used for user-supplied details the provider
+    /// can't know, like the seat.
+    func update(_ flight: Flight) {
+        guard let idx = flights.firstIndex(where: { $0.id == flight.id }) else { return }
+        flights[idx] = flight
+        save()
+    }
+
+    func setSeat(_ seat: String?, for flight: Flight) {
+        guard var updated = flights.first(where: { $0.id == flight.id }) else { return }
+        let trimmed = seat?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        updated.seat = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        update(updated)
     }
 
     func addSampleTrip() {
@@ -82,23 +122,62 @@ final class FlightStore: ObservableObject {
 
     // MARK: - Sections for the list UI
 
+    /// Everything still ahead of the user or in the air — the live list.
+    ///
+    /// The dividing line is landing plus 30 minutes, not the calendar day: a
+    /// red-eye that touches down at 06:00 shouldn't vanish at midnight while
+    /// it's still in the air, and a flight that landed an hour ago shouldn't
+    /// still be sitting at the top of the screen.
+    var activeFlights: [Flight] {
+        flights.filter { !$0.isArchived(at: clock) }
+    }
+
     var todayFlights: [Flight] {
-        flights.filter { Calendar.current.isDateInToday($0.scheduledDeparture) || $0.effectivePhase.isAirborne }
+        activeFlights.filter {
+            Calendar.current.isDateInToday($0.scheduledDeparture) || $0.effectivePhase.isAirborne
+        }
     }
+
     var upcomingFlights: [Flight] {
-        flights.filter {
+        activeFlights.filter {
             !Calendar.current.isDateInToday($0.scheduledDeparture)
-                && $0.scheduledDeparture > .now
+                && $0.scheduledDeparture > clock
                 && !$0.effectivePhase.isAirborne
         }
     }
+
+    /// Archived flights, newest first. A flight lands here automatically 30
+    /// minutes after arrival — see `Flight.archivesAt`.
     var pastFlights: [Flight] {
-        flights.filter {
-            !Calendar.current.isDateInToday($0.scheduledDeparture)
-                && $0.scheduledDeparture <= .now
-                && !$0.effectivePhase.isAirborne
+        flights
+            .filter { $0.isArchived(at: clock) }
+            .sorted { $0.bestDeparture > $1.bestDeparture }
+    }
+
+    /// The next flight to leave, if any — the headline of the Flights tab.
+    var nextFlight: Flight? {
+        activeFlights
+            .filter { !$0.effectivePhase.isComplete }
+            .min { $0.bestDeparture < $1.bestDeparture }
+    }
+
+    // MARK: - Passport
+
+    func passport(scope: PassportStats.Scope = .allTime) -> PassportStats {
+        PassportStats.build(from: flights, scope: scope, now: clock)
+    }
+
+    // MARK: - Punctuality record
+
+    /// Fold every finished flight into the delay history. Idempotent: the
+    /// history store de-duplicates by leg and day.
+    private func recordCompletedFlights(at now: Date = .now) {
+        let finished = flights.filter { $0.phase == .cancelled || $0.hasFlown(at: now) }
+        guard !finished.isEmpty else { return }
+        let observations = finished.compactMap {
+            DelayObservation(observed: $0, source: .flown, at: now)
         }
-        .sorted { $0.scheduledDeparture > $1.scheduledDeparture }
+        history.ingest(observations)
     }
 
     // MARK: - Connection detection

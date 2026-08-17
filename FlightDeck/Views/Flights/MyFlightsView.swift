@@ -1,9 +1,12 @@
 import SwiftUI
 
-/// Home tab: the user's tracked flights in Flighty-style sections.
+/// Home tab: the user's live flights in Flighty-style sections.
+///
+/// Only flights that haven't been archived yet appear here — a flight retires
+/// itself 30 minutes after landing and moves to the Passport's Past Flights
+/// list. See `Flight.archivesAt`.
 struct MyFlightsView: View {
     @EnvironmentObject private var store: FlightStore
-    @EnvironmentObject private var settings: SettingsStore
     @State private var showingAdd = false
 
     var body: some View {
@@ -15,7 +18,11 @@ struct MyFlightsView: View {
                     } else {
                         section("Today", flights: store.todayFlights, icon: "sun.max.fill")
                         section("Upcoming", flights: store.upcomingFlights, icon: "calendar")
-                        section("Past", flights: store.pastFlights, icon: "clock.arrow.circlepath")
+
+                        if store.todayFlights.isEmpty && store.upcomingFlights.isEmpty {
+                            allClearState
+                        }
+                        pastFlightsLink
                     }
                 }
                 .padding(.horizontal)
@@ -63,6 +70,66 @@ struct MyFlightsView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Shown once every tracked flight has been archived — better than an
+    /// empty screen that looks like the app lost the user's data.
+    private var allClearState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(Theme.green)
+                .padding(.top, 40)
+            Text("Nothing in the air")
+                .font(.system(size: 19, weight: .heavy, design: .rounded))
+            Text("All \(store.pastFlights.count) of your flights have landed. Add the next one whenever you're ready.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 10)
+    }
+
+    /// A peek at the most recent completed flights, with the full log a tap
+    /// away in the Passport.
+    @ViewBuilder
+    private var pastFlightsLink: some View {
+        if !store.pastFlights.isEmpty {
+            SectionHeader(title: "Recently Flown", systemImage: "clock.arrow.circlepath")
+                .padding(.top, 10)
+
+            ForEach(store.pastFlights.prefix(3)) { flight in
+                NavigationLink(value: flight) {
+                    PastFlightRow(flight: flight)
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) {
+                        store.remove(flight)
+                    } label: {
+                        Label("Remove Flight", systemImage: "trash")
+                    }
+                }
+            }
+
+            NavigationLink {
+                PastFlightsView()
+            } label: {
+                HStack {
+                    Text("All \(store.pastFlights.count) past flights")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.accent)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
         }
     }
 

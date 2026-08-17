@@ -6,6 +6,9 @@ struct RootTabView: View {
             MyFlightsView()
                 .tabItem { Label("Flights", systemImage: "airplane") }
 
+            PassportView()
+                .tabItem { Label("Passport", systemImage: "book.closed.fill") }
+
             AirportsView()
                 .tabItem { Label("Airports", systemImage: "building.2.fill") }
 
@@ -20,8 +23,11 @@ struct RootTabView: View {
 }
 
 #Preview {
+    let settings = SettingsStore()
+    let history = DelayHistoryStore()
     RootTabView()
-        .environmentObject(SettingsStore())
-        .environmentObject(FlightStore(settings: SettingsStore()))
+        .environmentObject(settings)
+        .environmentObject(history)
+        .environmentObject(FlightStore(settings: settings, history: history))
         .preferredColorScheme(.dark)
 }

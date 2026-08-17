@@ -1,8 +1,9 @@
 # ✈️ FlightDeck
 
 A personal-use iOS flight tracker inspired by **Flighty Pro** — its core flight
-tracking experience, **Airport Intelligence**, and **Connection Assistant** —
-rebuilt from scratch in SwiftUI with a dark, data-dense, Flighty-style UI.
+tracking experience, **Passport**, **Airport Intelligence**, **Connection
+Assistant**, and an **arrival forecast** — rebuilt from scratch in SwiftUI with
+a dark, data-dense, Flighty-style UI.
 
 No social features, no accounts, no subscriptions. Just useful flight
 information for you.
@@ -12,7 +13,10 @@ information for you.
 > feature-inspired implementation for personal use, with its own name, icon,
 > and design system.
 
-Built against the checklist in [`plan.md`](plan.md).
+Built against the checklist in [`plan.md`](plan.md). Feature research behind the
+Passport, tracking and forecast work is in
+[`docs/flighty-research.md`](docs/flighty-research.md); orientation for future
+work is in [`.claude/skills/flightdeck/SKILL.md`](.claude/skills/flightdeck/SKILL.md).
 
 ---
 
@@ -37,10 +41,62 @@ Built against the checklist in [`plan.md`](plan.md).
   - **"Where's My Plane"**: the inbound flight bringing your aircraft, with
     its origin and delay status — a late inbound is the #1 predictor of a
     late departure.
-  - **Aircraft card**: type, registration, route distance.
+  - **Aircraft card**: type, registration, route distance, and a seat field
+    (nothing supplies it automatically, and the Passport's top-seat stat
+    depends on it).
   - **Weather at both ends**: decoded METARs with VFR/MVFR/IFR/LIFR pills.
 - **Add flights** by designator + date ("DL 482"), pull-to-refresh, and
   auto-refresh of active flights every 90 seconds while the app is open.
+- **Flights retire themselves 30 minutes after landing** and move to Past
+  Flights. The dividing line is the landing, not the calendar day — a red-eye
+  stays on the live list while it's still in the air.
+
+### 1b. Passport
+A lifetime — or per-year — record of everywhere you've flown, computed on
+demand from your flight log. There is no second copy of the data: delete a
+flight and every number here follows immediately.
+
+- **Headline**: flights, miles (with "× around the world"), hours in the air,
+  airports, countries, airlines.
+- **Route map** weighted by how often you fly each city pair, so the commute
+  you do forty times reads heavier than the one holiday.
+- **Delay tracker**: hours lost, on-time rate, average delay, worst delay,
+  which airlines delay you most, which airports you land late at most, and the
+  full list of delayed arrivals. Counted at the **US DOT's 15-minute arrival
+  threshold**, so the numbers line up with published airline statistics.
+  Cancellations are tracked separately — they aren't trips.
+- **Most-flown aircraft** type, and most-flown individual airframe by tail
+  number.
+- **Records**: longest and shortest flight, most-flown route and airline, top
+  seat.
+- **How you fly**: domestic / international / long-haul / red-eye counts, and
+  departures by day of week.
+- **Past Flights**: month-grouped and searchable by flight number, airline,
+  airport, aircraft or tail.
+
+### 1c. Arrival forecast
+A probability that a flight lands 15+ minutes late, a predicted arrival, and a
+20th–80th percentile arrival band — with its working shown.
+
+The model is deliberately inspectable rather than a black box. It starts from
+the published US baseline (~21% of arrivals late), then refines it through
+progressively narrower slices of a rolling **60-day punctuality record** —
+origin airport → that airline at that airport → the route → that airline on
+that route → that airline, route and time of day. Each tier is shrunk toward
+the one below it in proportion to how little data it has, so six flights on
+your exact route move the number without overriding everything. Live
+conditions (a late inbound aircraft, an FAA program, IFR weather) then adjust
+it in log-odds. Once the flight is airborne, history stops guessing: the live
+estimate becomes the centre and the band narrows as the flight progresses.
+
+The card always names its sample size and basis, and lists every factor that
+moved the number — a bare percentage from a personal-scale dataset would be
+unfalsifiable.
+
+History comes from flights you take (folded in automatically once they land)
+plus a per-route backfill: real provider history when an AeroDataBox key is
+configured, and **clearly labelled generated history in Demo Mode** so the
+feature is exercisable without a key and never mistakable for real data.
 
 ### 2. Airport Intelligence
 - Searchable database of **110 major world airports** (bundled offline).
@@ -59,17 +115,29 @@ Built against the checklist in [`plan.md`](plan.md).
 - Favorites (star an airport to pin it).
 
 ### 2b. Live Traffic (ADS-B)
-Every aircraft adsb.lol can see around an airport or around your own flight,
-drawn on satellite imagery and animated as continuous motion.
+Every aircraft adsb.lol can see, drawn on satellite imagery and animated as
+continuous motion.
 
-- **Ground scope** (3 nm, satellite) is the interesting one: aircraft report
+**Tracking hangs off your flight, not off an airport.** Tap a flight, tap its
+map header, and you get the full-screen tracking map: your aircraft on its
+great-circle route, **no zoom ceiling**, and every contact around you —
+airborne *and* on the ground, not one or the other.
+
+- **Ground scope** (5 nm, satellite) is the interesting one: aircraft report
   their own GNSS position with a stated accuracy of 10–30 m, which is fine
   enough to read **which aircraft are ahead of you in the departure queue** and
-  roughly where on the pavement they sit. Movers are labelled with callsign and
-  taxi speed; parked aircraft are dimmed.
-- **Nearby scope** (25 nm) shows airborne traffic coloured by altitude band.
-- **Traffic near your aircraft** appears on the flight page once your airframe
-  is found on ADS-B, with its accuracy ring drawn.
+  roughly where on the pavement they sit.
+- **Nearby scope** (40 nm) shows traffic around you coloured by altitude band.
+- **Route scope** frames the whole flight.
+- **Tap any aircraft** to identify it — callsign, type, altitude or
+  taxiing/parked, speed, distance.
+- The camera **follows your aircraft while keeping whatever zoom you pinched
+  to**, and the first drag hands control back to you.
+- Your own airframe is drawn larger and in white with its ADS-B accuracy ring —
+  the one target where the error circle is information rather than clutter.
+
+The airport-wide traffic view still exists under Airports, for the different
+question "what's happening at this field right now".
 
 **How the motion works.** The feed is discrete and irregular — position fixes in
 a single response range from a fraction of a second to tens of seconds old. So
@@ -153,11 +221,13 @@ times, and the map uses live ADS-B positions via the flight's callsign.
 
 ```
 FlightDeck/
-├── FlightDeckApp.swift          App entry; injects the two stores
-├── RootTabView.swift            Flights · Airports · Connection · Settings
+├── FlightDeckApp.swift          App entry; injects the three stores
+├── RootTabView.swift            Flights · Passport · Airports · Connection ·
+│                                Settings
 ├── Theme/Theme.swift            Design tokens (colors, type, card style)
 ├── Models/                      Flight, Airport, Metar, AirportEvent,
-│                                ConnectionAssessment (+ risk engine)
+│                                TrackedAircraft, ConnectionAssessment,
+│                                PassportStats, DelayObservation
 ├── Services/
 │   ├── FlightDataProvider.swift  Protocol: where schedules come from
 │   ├── DemoFlightProvider.swift   Clock-relative simulated flights
@@ -165,13 +235,20 @@ FlightDeck/
 │   ├── FAAStatusService.swift     Keyless FAA NAS status (XML), cached
 │   ├── WeatherService.swift       Keyless METARs (JSON), cached
 │   ├── AdsbService.swift          Keyless live positions by callsign
+│   ├── TrafficService.swift       Keyless radius traffic search
 │   ├── FlightIntel.swift          Delay-signal heuristics
+│   ├── ArrivalForecaster.swift    Delay probability + arrival band
+│   ├── DelayHistoryBackfill.swift Provider scan / seeded demo history
 │   └── AirportDatabase.swift      Bundled airports.json loader
 ├── Stores/
-│   ├── FlightStore.swift          Source of truth + persistence + refresh
+│   ├── FlightStore.swift          Source of truth + persistence + archival
+│   ├── DelayHistoryStore.swift    Rolling 60-day punctuality record
+│   ├── TrafficStore.swift         Polling + dead-reckoned tracks
+│   ├── AircraftTracker.swift      One airframe by callsign
 │   └── SettingsStore.swift        Demo mode, API key, favorites
-├── Utilities/                     Great-circle math, formatters
-├── Views/                         Flights / Airports / Connection /
+├── Utilities/                     Great-circle math, dead reckoning,
+│                                  formatters
+├── Views/                         Flights / Passport / Airports / Connection /
 │                                  Settings / shared components
 └── Resources/airports.json        110 airports: coords, IANA tz, MCTs
 ```
@@ -202,10 +279,30 @@ FlightDeck/
   optional, and network/parse failures degrade to "no data" rather than
   errors. The FAA XML is parsed with a small tolerant state machine.
 - **Heuristic intel, honestly labeled.** Flighty's delay predictions are an
-  ML model trained on years of data; recreating that isn't feasible for a
-  personal app. Instead, the same *inputs* (late inbound, FAA programs,
+  ML model trained on years of fleet-wide data; recreating that isn't feasible
+  for a personal app. Instead, the same *inputs* (late inbound, FAA programs,
   IFR weather) are surfaced as explainable signals — arguably more useful
   for one person than a black-box probability.
+- **The arrival forecast shows its working, and its sample size.** A personal
+  app sees a handful of flights per route per year, which is nowhere near
+  enough to state a percentage on its own. So the forecaster starts from a
+  published baseline and lets progressively narrower slices of history pull it,
+  each shrunk in proportion to how little data it has. The card names its
+  sample and every factor that moved the number, because a bare percentage
+  from a personal-scale dataset is unfalsifiable — and therefore worse than no
+  percentage. Generated Demo Mode history is labelled as generated everywhere
+  it surfaces.
+- **The Passport is a pure function of the flight log**, not a second copy of
+  it. `PassportStats.build` recomputes from `flights` on every render — cheap
+  for a realistic log, and nothing can drift out of sync or survive a deletion.
+- **Flights archive on landing + 30 minutes, not on the calendar day.** The
+  obvious implementation (anything before today is "past") makes a red-eye
+  vanish at midnight while it's still in the air. `FlightStore` publishes a
+  30-second clock so the transition happens live, without a relaunch.
+- **One `Canvas` on a display clock draws every moving aircraft**, rather than
+  one MapKit annotation each. Thirty annotations updating every frame thrashes;
+  one overlay doesn't. The cost is manual hit-testing for tap-to-identify,
+  which is worth it.
 - **Connection risk = live times vs. per-airport MCT.** The bundled database
   carries rule-of-thumb minimum connection times (domestic/international) per
   airport; the assessment recomputes from *estimated* times on every refresh,
@@ -228,7 +325,14 @@ FlightDeck/
 
 ### Ideas for later
 Live Activities / Dynamic Island for the lock screen, WidgetKit widgets,
-Keychain for the key, seat-map links, calendar import, a Watch app.
+Keychain for the key, seat-map links, calendar import, a Watch app, shareable
+Passport cards, and a test target — the forecaster's math (percentiles,
+log-odds, the normal CDF, the shrinkage chain) is the obvious first candidate.
+
+### Testing
+There's no test target yet. Verification is a build plus the manual script in
+[`docs/simulator-test-plan.md`](docs/simulator-test-plan.md), which is written
+to be run start-to-finish against an iOS simulator.
 
 ---
 

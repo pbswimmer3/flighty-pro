@@ -96,8 +96,48 @@ Research and design in [`docs/live-traffic-plan.md`](docs/live-traffic-plan.md).
 - [x] Airport ground view (queue-readable at 3 nm) and traffic near own aircraft
 - [x] Verified in simulator; engine covered by 24 checks
 
+## Phase 8 — Passport, flight-centric tracking & arrival forecast
+Research in [`docs/flighty-research.md`](docs/flighty-research.md) (what the
+real Flighty ships, what we matched, and the gaps left on purpose).
+
+- [x] Research pass over Flighty's Passport, delay prediction and map UX
+- [x] `Flight`: seat field, DOT 15-minute delay threshold, archival clock,
+      origin-timezone calendar, route distance, trip-shape predicates
+- [x] `PassportStats` — one pure fold over the flight log producing flights,
+      miles, air time, airports, countries, airlines, aircraft types, tail
+      numbers, seats, routes, records, trip shape and the full delay tracker
+- [x] Passport tab: headline tiles, frequency-weighted route map, delay
+      tracker (hours lost, on-time rate, worst delay, worst airlines and
+      arrival airports), most-flown aircraft, ranked lists, day-of-week
+      histogram, records
+- [x] Past Flights: month-grouped, searchable; flights archive themselves
+      30 minutes after landing, driven by a 30-second clock on `FlightStore`
+      so the move happens live rather than on relaunch
+- [x] `FlightTrackingMapView` — tracking now hangs off *the flight*: own
+      aircraft on its great-circle route, no zoom ceiling, surrounding ADS-B
+      traffic both airborne and on the ground, Ground/Nearby/Route scopes,
+      tap-to-identify, zoom-preserving follow mode
+- [x] Fix tracker lifetime: `FlightMapView` no longer stops the poll in
+      `onDisappear`, which was killing the live track the moment the user
+      pushed the tracking map
+- [x] `DelayHistoryStore` — rolling 60-day punctuality record, de-duplicated
+      by leg and day, fed by flights flown plus a per-route backfill
+- [x] `DelayHistoryBackfill` — sequential provider scan with a real key;
+      deterministic seeded synthetic history in Demo Mode, labelled as such
+- [x] `ArrivalForecaster` — hierarchical shrinkage over five tiers of history,
+      log-odds adjustments for live conditions, live-estimate takeover once
+      airborne, with sample size and every contributing factor surfaced
+- [x] `docs/simulator-test-plan.md` — manual test script for a local session
+      with the iOS simulator
+- [x] `.claude/skills/flightdeck/SKILL.md` — orientation for future sessions
+- [ ] **Build and run in the simulator** — this phase was written in an
+      environment with no Swift toolchain and has never been compiled
+
 ## Explicitly out of scope
 - Flighty Friends / social features, shared trips
 - Push notifications (needs paid Apple Developer account + server); delay
   signals are computed in-app on refresh instead
+- Shareable Passport cards (the value is social; this app has no social surface)
 - Seat maps, TripIt/calendar import, Live Activities (noted as future ideas)
+- Airframe age and "Get Me Off This Plane" taxi-in time — no bundled data
+  source for either

@@ -130,14 +130,48 @@ real Flighty ships, what we matched, and the gaps left on purpose).
 - [x] `docs/simulator-test-plan.md` — manual test script for a local session
       with the iOS simulator
 - [x] `.claude/skills/flightdeck/SKILL.md` — orientation for future sessions
-- [ ] **Build and run in the simulator** — this phase was written in an
-      environment with no Swift toolchain and has never been compiled
+- [x] **Build and run in the simulator** — done; the phase compiled and was
+      walked through on an iOS 26 simulator
+
+## Phase 9 — Symbols, routes, stages & alerts
+
+- [x] `AircraftGlyph` draws a real airliner silhouette instead of a delta, and
+      `FlightMapView` stopped hand-rolling its own copy of the old triangle
+- [x] Map labels are **earned by a tap**, not drawn over every contact — a
+      selection callout gives the identifier and the route
+- [x] `FlightRouteService` — keyless, global callsign → route via adsbdb, with
+      `RouteLookup` as the `@MainActor` cache a `Canvas` can read mid-frame
+- [x] Tap-to-identify added to `LiveTrafficMapView` too, so the airport map and
+      the flight map answer a tap the same way
+- [x] `FlightTrackingMapView` seeds its camera in `init` — with `.automatic` it
+      framed the whole route and opened on a continent
+- [x] Traffic search follows the estimated position, not just ADS-B fixes; it
+      used to sit at the origin airport for the whole flight
+- [x] `AeroDataBoxProvider` — reject out-of-range dates up front, accept both
+      response envelopes, treat an empty body as not-found, and pass the
+      service's own message through. "Unexpected response" told nobody anything
+- [x] `ManualFlightView` — add any flight, any date, anywhere, prefilled from
+      the keyless route lookup; times entered as local wall clock at each
+      airport with the arrival date resolved rather than asked for
+- [x] `FlightStage` + `Flight.milestones` — thirteen clock-derived stages, one
+      shared set of dated milestones, and `effectivePhase` collapsed out of the
+      stage so they can't drift
+- [x] `FlightStageBar` — live countdown to the next milestone, on the card and
+      as the flight page banner
+- [x] `NotificationService` — local notifications for check-in, boarding, gate
+      close, departure, one-hour-to-landing, touchdown and bags; six category
+      toggles; a test alert; and `FlightChange` diffs fired on refresh
+- [x] `docs/flighty-research.md` §5 — full feature-by-feature audit against
+      Flighty, so the remaining gaps are known rather than accidental
 
 ## Explicitly out of scope
 - Flighty Friends / social features, shared trips
-- Push notifications (needs paid Apple Developer account + server); delay
-  signals are computed in-app on refresh instead
+- **Push** notifications (needs a paid Apple Developer account + server). Local
+  notifications are in as of Phase 9 and cover every alert with a knowable
+  time; change alerts still need the app awake
 - Shareable Passport cards (the value is social; this app has no social surface)
-- Seat maps, TripIt/calendar import, Live Activities (noted as future ideas)
+- Live Activities, widgets, Watch and CarPlay — all need an app extension
+  target, the one thing that would force editing `project.pbxproj`
+- Seat maps and TripIt/calendar import (noted as future ideas)
 - Airframe age and "Get Me Off This Plane" taxi-in time — no bundled data
   source for either

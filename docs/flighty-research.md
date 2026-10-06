@@ -95,24 +95,143 @@ labelled as generated wherever it appears. Neither is a fleet-wide dataset.
   going through an airport page; it now hangs off the flight, with the airport
   view kept for the separate "what's happening at this field" question.
 
-## 4. Things Flighty has that we still don't
+## 4. Notifications and flight stages
 
-Listed so the gaps are known rather than accidental:
+Flighty's own help page lists these alerts: delay prediction, connection
+assistant, friends' flights, aircraft type & tail assignments, flight plan
+filed, airport delay, inbound plane, gate change, taxi/takeoff/landing times,
+cancellation or diversion, baggage claim, and check-in reminder. Reviews add a
+day-before "flight plan filed" note, a two-hour warning with terminal and gate,
+and a one-hour-to-landing alert.
 
-- **Push notifications and Live Activities.** These need a paid Apple Developer
-  account and a server; delay signals are computed in-app on refresh instead.
-  This was already an explicit non-goal in `plan.md`.
-- **Sharing cards.** Flighty's Passport is heavily oriented toward shareable
-  images. Skipped deliberately: the value is social, and this is a
-  personal-use app with no social surface.
-- **Airframe age, seat maps, cabin class, fare class.** No bundled data source.
-- **Airport delay *forecasting*** (predicting when an airport's delays will
-  end). We show current FAA programs, not a forecast of their end.
-- **Auto-import** from TripIt, calendar or email.
-- **Amenity and terminal maps.**
+The earlier note in this file said notifications needed a paid developer
+account and a server. That conflated two different things, and the distinction
+turns out to matter a lot:
+
+- **Push** notifications need a server and a certificate. Flighty's core claim —
+  alerts *faster than the airline* — is entirely on that side of the line, and
+  is not reachable here at any effort.
+- **Local** notifications need neither. Anything with a knowable date can be
+  handed to iOS in advance and it fires with the app closed.
+
+Almost every alert on Flighty's list has a knowable date, so they are now
+scheduled locally: check-in, boarding, gate close, departure, one hour to
+landing, touchdown, and bags. See `NotificationService`.
+
+What genuinely can't work without a server is the *change* half — a gate move,
+a fresh delay, a cancellation. Those are only discovered when the app is awake
+and refreshing, so they fire then and Settings says so in plain words rather
+than letting anyone assume their pocket will buzz. `FlightChange` holds the
+diff rules.
+
+Alongside that, `FlightStage` gives the lifecycle the granularity Flighty
+shows. It's derived from the clock, not from a provider, so the screen walks
+itself through Check-in open → Boarding soon → Boarding → Gate closing →
+Taxiing → In the air → Landing soon → Taxiing to gate → At the gate → Arrived,
+and stays correct in Demo Mode. `FlightPhase` is still what gets persisted;
+`effectivePhase` is collapsed out of the stage so the two can't drift.
+
+Boarding and gate-close times are **derived, not published** — no feed we can
+read carries them. 35 minutes before departure domestic, 50 international, and
+gate close 15/20. They lean early on purpose: being early to a gate costs
+nothing. Every derived time on the timeline is prefixed `~`.
+
+## 5. Full feature audit
+
+Everything advertised on Flighty's App Store listing and help pages, against
+what this app does. Social features (Flighty Friends, sharing) are excluded by
+choice — this is a personal-use app with no social surface.
+
+### Tracking and live data
+
+| Flighty | Here | Notes |
+|---|---|---|
+| Live tracking on pilot-grade FAA / Eurocontrol data | ⚠️ | ADS-B via adsb.lol. Positions are as good; we have no ATC feed, so no flight plans or clearance data |
+| Ground radar while taxiing | ✅ | Ground scope, satellite imagery, surface positions with `true_heading` |
+| Proximity radar — nearby aircraft | ✅ | Nearby / Route scopes on the flight tracking map |
+| Tap an aircraft to identify it | ✅ | Callsign + route via adsbdb; labels only appear on tap |
+| Actual filed flight plan, live-streamed | ❌ | No keyless source |
+| 25-hour "where's my plane" inbound tracking | ⚠️ | The card exists; only Demo Mode supplies inbound legs — no provider we use returns the previous rotation |
+| Gate predictions | ❌ | No source |
+| Delay prediction with a stated reason | ✅ | `ArrivalForecaster` — different method, see §2, and it shows its working |
+| Aircraft model and tail number | ✅ | From AeroDataBox |
+| Aircraft age / name / photo | ❌ | Needs an airframe database we don't bundle |
+
+### Alerts
+
+| Flighty | Here | Notes |
+|---|---|---|
+| Check-in reminder | ✅ | Scheduled locally, 24 h out |
+| Boarding | ✅ | Scheduled; time is derived, see §4 |
+| Gate close / final call | ✅ | Scheduled |
+| Departure | ✅ | Scheduled |
+| One hour to landing | ✅ | Scheduled |
+| Landing | ✅ | Scheduled |
+| Baggage claim | ✅ | Scheduled, plus an immediate alert when a belt is assigned |
+| Gate change | ⚠️ | Fires, but only when the app refreshes |
+| Delay / cancellation / diversion | ⚠️ | Same |
+| Aircraft or tail reassignment | ⚠️ | Same |
+| Inbound aircraft running late | ⚠️ | Same, and limited by the inbound gap above |
+| *Faster than the airline* | ❌ | Structurally impossible without a push server. This is Flighty's headline feature and the honest answer is that we don't have it |
+| Airport weather / ground-stop alerts | ⚠️ | Shown on the flight page; not pushed |
+| Tight-connection warning | ⚠️ | Connection tab; not pushed |
+| Taxi and takeoff *times* recorded | ❌ | Would need position tracking to continue in the background |
+
+### Assistants and import
+
+| Flighty | Here | Notes |
+|---|---|---|
+| Connection assistant | ✅ | Connection tab, with the gap rules in `ConnectionRules` |
+| Morning-of assistant | ❌ | Would be a cheap addition — it's another scheduled local notification |
+| Check-in assistant with booking reference and link | ⚠️ | We remind; we hold no reservation data |
+| Calendar / TripIt / email import | ❌ | The largest remaining convenience gap. Calendar is the tractable one |
+| Bulk import from other trackers | ❌ | |
+| Manual entry for any flight, any date | ✅ | Better than parity: prefilled from a keyless route lookup, so it works for flights beyond any live feed |
+
+### Passport
+
+Covered in §1. Still missing: airframe age, shareable stat cards (deliberate),
+flight notes and travel-reason tagging, and data export.
+
+### Airport intelligence
+
+| Flighty | Here | Notes |
+|---|---|---|
+| Live airport delay status | ✅ | FAA NAS Status, US only |
+| Plain-language "why" from METAR/TAF | ⚠️ | METAR shown and used by the forecaster; not narrated |
+| Global airport status map | ❌ | |
+| Departure/arrival performance by hour | ❌ | |
+| Most-visited airports | ✅ | Passport |
+| Favourite airports with disruption alerts | ⚠️ | Favourites exist; no alerting on them |
+| Airport delay *forecasting* — when delays will end | ❌ | We show current programs, not their end |
+| Terminal and amenity maps | ❌ | |
+
+### Platform surfaces
+
+All of these need a widget or app extension target, which means editing
+`project.pbxproj` — the one thing this project's layout otherwise never
+requires. They're grouped here because they're one decision, not eight:
+
+| Flighty | Here |
+|---|---|
+| Live Activities / Dynamic Island | ❌ |
+| Lock-screen and home-screen widgets | ❌ |
+| Apple Watch app and complications | ❌ |
+| CarPlay | ❌ |
+| App Intents, Siri Shortcuts, Spotlight | ❌ |
+| iCloud sync across devices | ❌ — persistence is a local JSON file |
+| iPad / Mac | ⚠️ — builds and runs; laid out for iPhone |
+
+Live Activities are the highest-value item on that list by a distance: a flight
+tracker's natural home is the lock screen. Worth noting that a Live Activity
+started while the app is open can be *updated locally* from the app — the push
+server is only needed to update it while the app is closed. So a partial
+version is reachable; a full one isn't.
 
 ## Sources
 
+- [Flighty on the App Store](https://apps.apple.com/us/app/flighty-live-flight-tracker/id1358823008) — the fullest feature list, and the basis of §5
+- [How do I manage flight tracking notifications in Flighty?](https://flighty.com/help/flighty-notifications)
 - [Flighty Passport help page](https://flighty.com/help/passport)
 - [Flighty Passport product page](https://flighty.com/passport)
 - [How Flighty predicts flight delays](https://flighty.com/help/delay-predictions)

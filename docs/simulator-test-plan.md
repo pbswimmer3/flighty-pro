@@ -8,10 +8,11 @@ executable — no step says "check it looks right" without saying what right is.
 `.claude/skills/flightdeck/SKILL.md`. It explains the invariants several of
 these tests exist to protect.
 
-> The branch this work landed on is `claude/flighty-passport-tracking-iv0t8z`.
-> None of it has ever been compiled — it was written in a Linux container with
-> no Swift toolchain. **Assume the first build will fail and budget for it.**
-> Phase 0 is the real gate; everything after it assumes a clean build.
+> Phases 1–5 covered the Passport / tracking / forecast work, which has since
+> been built and run on a simulator — Phase 0's "assume it won't compile"
+> warning no longer applies to it. **Phase 6 is the current work**: airplane
+> glyphs and tap-to-identify, the keyless route lookup and manual entry, and
+> flight stages and local notifications.
 
 ---
 
@@ -353,6 +354,109 @@ scale down rather than truncating.
 **5.8** Airplane mode: no crashes, no spinners that never resolve. Traffic
 shows a failure or no-coverage state; the Passport is entirely offline and
 must be fully functional.
+
+## Phase 6 — Glyphs, routes, stages and alerts
+
+### 6a — Aircraft symbols and tap-to-identify
+
+**6.1 — It's an aeroplane.** Airports → LHR (or any busy field mid-morning
+local) → Airport-Wide Traffic, Ground scope. Every contact is an airliner
+silhouette with swept wings and a tailplane, oriented along the taxiway it's
+on. A triangle means `AircraftGlyph.path` regressed.
+
+**6.2 — No labels until you ask.** The map carries **no** callsign text of its
+own. If callsigns are printed over the traffic, the always-on labels came back.
+
+**6.3 — A tap gives the route.** Tap an airline aircraft. Expect a selection
+ring, a two-line pill under it (`BAW53M` / `LHR → NAS`), and a bottom card with
+the same route in accent blue plus type, speed and distance. Tap it again or ✕
+to dismiss; tapping empty map clears it.
+
+**6.4 — Misses are honest.** Tap a business jet or a bare registration
+(`N977JE`). It must read **"Route unknown"** — not an error, not a spinner that
+never resolves, and never a guessed route.
+
+**6.5 — Same behaviour on your own flight.** Flights → the airborne flight →
+map header → tracking map. Same silhouette, same tap behaviour. Tapping your
+own aircraft shows its designator and route from the flight itself.
+
+**6.6 — The camera opens on the aircraft** at roughly 90 km across, not framed
+to the whole route. Opening on the continent means the seed camera in
+`init` regressed to `.automatic`.
+
+### 6b — Lookup failure and manual entry
+
+**6.7 — Route prefill.** Add Flight → type `BA137`. Within a second an
+"Enter it yourself" section appears reading **Add BA 137 manually ·
+ROB → FNA · British Airways**, with the caveat that it's the route that number
+usually flies. This is keyless — it works with Demo Mode on and no API key.
+
+**6.8 — Manual add round-trip.** Tap it. Airline, number and both airports are
+prefilled; the footer states the computed flight time. Tap Add — **both** sheets
+close and the flight is in the list. If only the inner sheet closes, the
+`onDismiss` handoff regressed.
+
+**6.9 — Unknown airports are declared.** With ROB/FNA prefilled (neither is in
+the bundled database) the Route footer must say so, and say the flight won't
+count toward Passport distance. Silently using the phone's timezone is the
+failure.
+
+**6.10 — Date guard (needs a key).** Turn Demo Mode off, paste a key, pick a
+date 6 months out. The Search button disables and the footer explains live
+schedules only cover about a week — with manual entry offered. Searching an
+out-of-range date must never produce "unexpected response".
+
+### 6c — Stages, countdowns and alerts
+
+**6.11 — Countdowns tick.** Flights tab: each live card carries a stage line
+("Boards in 2h 36m", "Lands in 2h 5m") whose icon matches its text, and it
+counts down without touching anything. Only one "lands in" per card.
+
+**6.12 — Stages advance on the clock.** Edit `flights.json` (per 2.2) so a
+flight departs in 90 seconds, relaunch, and watch the flight page. The banner
+must walk Gate closing → Taxiing → In the air with no refresh, no relaunch and
+no provider.
+
+**6.13 — Timeline agrees with itself.** Flight page → Timeline: six rows in
+order, with `~` on check-in, boarding, gate close and bags. Check-in carries a
+`−1d` marker; a red-eye's arrival carries `+1d`. A bare time on a different
+calendar day is the bug this exists to catch.
+
+**6.14 — Permission flow.** Settings → Alerts → "Turn On Flight Alerts" →
+Allow. Six category toggles appear plus "Alerts queued with iOS" — non-zero.
+
+**6.15 — The schedule is real.** Verify it's actually with iOS, not just in
+the UI:
+
+```bash
+xcrun simctl spawn booted log show --last 5m \
+  --predicate 'eventMessage CONTAINS "flightdeck."' --style compact \
+  | grep -oE "flightdeck\.[A-Za-z0-9.-]+" | sort -u
+```
+
+Expect `flightdeck.<uuid>.<kind>` identifiers — `boarding`, `gateClose`,
+`departure`, `landingSoon`, `landing`, `bags`, `checkIn` — and the count must
+match the number in Settings. A flight already airborne must have only its
+arrival-side alerts.
+
+**6.16 — Test alert.** "Send a Test Alert", background the app, wait 5 s: a
+banner arrives. Foreground it and send again — it must still show, which is
+what the `ForegroundPresenter` delegate is for.
+
+**6.17 — Toggles take effect.** Turn "Baggage claim" off. The queued count
+drops and no `.bags` identifiers remain in the log above.
+
+**6.18 — Rescheduling is idempotent.** Add a flight, remove it, add it again.
+The queued count returns to the same number — no orphaned alerts for the
+deleted flight, and no duplicates.
+
+**6.19 — Under the cap.** Load ~15 upcoming flights. Queued alerts must stop at
+56, keeping the *nearest* ones. Exceeding 64 means iOS is silently dropping
+them.
+
+**6.20 — Honesty check.** The Settings footer must state that change alerts
+(gate move, new delay) are only found when the app refreshes. If that text is
+gone, the app is implying a push service it doesn't have.
 
 ## Reporting back
 

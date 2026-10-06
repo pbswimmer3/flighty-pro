@@ -23,12 +23,24 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(favoriteAirports, forKey: "favoriteAirports") }
     }
 
+    /// Stored as one encoded blob rather than a key per switch, so a group
+    /// added in a later version defaults to on instead of silently off.
+    @Published var notifications: NotificationPreferences {
+        didSet {
+            guard let data = try? JSONEncoder().encode(notifications) else { return }
+            defaults.set(data, forKey: "notificationPreferences")
+        }
+    }
+
     init() {
         demoMode = defaults.object(forKey: "demoMode") == nil
             ? true
             : defaults.bool(forKey: "demoMode")
         aeroDataBoxKey = defaults.string(forKey: "aeroDataBoxKey") ?? ""
         favoriteAirports = defaults.stringArray(forKey: "favoriteAirports") ?? ["SFO", "JFK", "LHR"]
+        notifications = defaults.data(forKey: "notificationPreferences")
+            .flatMap { try? JSONDecoder().decode(NotificationPreferences.self, from: $0) }
+            ?? NotificationPreferences()
     }
 
     func toggleFavorite(_ iata: String) {

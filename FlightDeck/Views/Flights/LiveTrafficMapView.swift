@@ -33,6 +33,8 @@ struct LiveTrafficMapView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var camera: MapCameraPosition
+    @StateObject private var routes = RouteLookup()
+    @State private var selectedHex: String?
 
     init(store: TrafficStore,
          center: CLLocationCoordinate2D,
@@ -71,8 +73,12 @@ struct LiveTrafficMapView: View {
             }
             .mapStyle(mapStyle)
             .overlay { trafficLayer(proxy) }
+            .onTapGesture { (point: CGPoint) in
+                selectTrack(near: point, proxy: proxy)
+            }
             .overlay(alignment: .top) { statusBar }
             .overlay(alignment: .bottomLeading) { legend }
+            .overlay(alignment: .bottom) { selectedCard }
         }
         .onAppear { startIfActive() }
         .onDisappear { store.stop() }
@@ -126,12 +132,10 @@ struct LiveTrafficMapView: View {
                       size: CGSize,
                       proxy: MapProxy,
                       now: Date) {
-        // Labels are the expensive part; only the movers and the user's own
-        // aircraft earn one. Even then they're placed against a claimed-space
-        // list — at a hub, a dozen taxiing aircraft sit close enough together
-        // that unchecked labels overprint into an unreadable smear.
-        let labelBudget = 12
-        var claimed: [CGRect] = []
+        // The callout is drawn after the loop so no later symbol paints over
+        // it, which is also why the anchor is carried out rather than drawn
+        // in place.
+        var selectedAnchor: (point: CGPoint, size: CGFloat)?
 
         for track in visibleTracks {
             let rendered = track.state(at: now)
@@ -141,6 +145,7 @@ struct LiveTrafficMapView: View {
                   point.x < size.width + 40, point.y < size.height + 40 else { continue }
 
             let isOwn = track.report.hex == highlightHex
+            let isSelected = track.report.hex == selectedHex
             let style = TrafficSymbol(report: track.report, isOwn: isOwn, isStale: rendered.isStale)
 
             if isOwn, let accuracy = track.report.accuracyMetres {
@@ -148,40 +153,133 @@ struct LiveTrafficMapView: View {
                                  proxy: proxy, coordinate: rendered.coordinate)
             }
 
-            drawSymbol(&context, at: point, heading: rendered.headingDegrees,
-                       hasHeading: track.report.headingDegrees != nil, style: style)
+            AircraftGlyph.draw(&context, at: point,
+                               heading: rendered.headingDegrees,
+                               hasHeading: track.report.headingDegrees != nil,
+                               style: style,
+                               isSelected: isSelected)
 
-            let deservesLabel = isOwn || (track.report.onGround && !track.report.isStationary)
-            guard deservesLabel, claimed.count < labelBudget, let text = label(for: track) else { continue }
+            if isSelected { selectedAnchor = (point, style.size) }
+        }
 
-            let origin = CGPoint(x: point.x, y: point.y + style.size + 8)
-            // Rough box: 5 pt per character is close enough for 9 pt rounded.
-            let box = CGRect(x: origin.x - CGFloat(text.count) * 2.5, y: origin.y,
-                             width: CGFloat(text.count) * 5, height: 11)
-            guard !claimed.contains(where: { $0.intersects(box) }) else { continue }
-            claimed.append(box)
-
-            context.draw(Text(text)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(style.color.opacity(style.opacity)),
-                         at: origin, anchor: .top)
+        // Only the tapped aircraft is labelled. Labelling every mover meant
+        // that at a hub the apron disappeared under overlapping callsigns —
+        // and a callsign on its own doesn't answer the question people
+        // actually have, which is where that aircraft is going.
+        if let anchor = selectedAnchor, let track = selectedTrack {
+            let route = routes.route(for: track.report.callsign)
+            let subtitle = route?.arrow
+                ?? (routes.isLoading(track.report.callsign) ? "Looking up route…" : nil)
+            AircraftGlyph.drawCallout(&context,
+                                      at: CGPoint(x: anchor.point.x, y: anchor.point.y + anchor.size + 9),
+                                      title: route?.displayNumber ?? track.report.label,
+                                      subtitle: subtitle,
+                                      width: size.width)
         }
     }
 
-    private func label(for track: TrafficStore.Track) -> String? {
-        let name = track.report.label
-        guard let speed = track.report.groundSpeedKts, speed >= DeadReckoning.Limits.stationaryKts
-        else { return name }
-        return "\(name) · \(Int(speed))kt"
+    // MARK: - Selection
+
+    /// Nearest aircraft to the tap, within a finger's width. Hit testing is
+    /// manual because the symbols live in a single `Canvas` that deliberately
+    /// passes gestures through to the map underneath.
+    private func selectTrack(near point: CGPoint, proxy: MapProxy) {
+        let now = Date.now
+        var best: (hex: String, distance: CGFloat)?
+
+        for track in visibleTracks {
+            let rendered = track.state(at: now)
+            guard let candidate = proxy.convert(rendered.coordinate, to: .local) else { continue }
+            let distance = hypot(candidate.x - point.x, candidate.y - point.y)
+            if distance < 28, distance < (best?.distance ?? .greatestFiniteMagnitude) {
+                best = (track.report.hex, distance)
+            }
+        }
+
+        let newSelection = (best?.hex == selectedHex) ? nil : best?.hex
+        withAnimation(.easeInOut(duration: 0.15)) {
+            selectedHex = newSelection
+        }
+        if let hex = newSelection,
+           let callsign = visibleTracks.first(where: { $0.report.hex == hex })?.report.callsign {
+            routes.lookup(callsign)
+        }
     }
 
-    private func drawSymbol(_ context: inout GraphicsContext,
-                            at point: CGPoint,
-                            heading: Double,
-                            hasHeading: Bool,
-                            style: TrafficSymbol) {
-        AircraftGlyph.draw(&context, at: point, heading: heading,
-                           hasHeading: hasHeading, style: style)
+    private var selectedTrack: TrafficStore.Track? {
+        guard let selectedHex else { return nil }
+        return visibleTracks.first { $0.report.hex == selectedHex }
+    }
+
+    @ViewBuilder
+    private var selectedCard: some View {
+        if let track = selectedTrack {
+            let report = track.report
+            HStack(spacing: 10) {
+                Image(systemName: report.onGround ? "airplane" : "airplane.circle.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(report.onGround ? Theme.cyan : Theme.accent)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(report.label)
+                            .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        if let type = report.icaoType {
+                            Text(type)
+                                .font(Theme.monoFont(10, weight: .medium))
+                                .foregroundStyle(Theme.textTertiary)
+                        }
+                    }
+                    if let route = routes.route(for: report.callsign) {
+                        Text(route.arrow)
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Theme.accent)
+                    } else if routes.isLoading(report.callsign) {
+                        Text("Looking up route…")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.textTertiary)
+                    } else if routes.isUnknown(report.callsign) {
+                        Text("Route unknown")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.textTertiary)
+                    }
+                    Text(detailLine(report))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { selectedHex = nil }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private func detailLine(_ report: TrafficReport) -> String {
+        var parts: [String] = []
+        if report.onGround {
+            parts.append(report.isStationary ? "Parked" : "Taxiing")
+        } else if let altitude = report.altitudeFeet {
+            parts.append("\(Fmt.grouped(altitude)) ft")
+        }
+        if let speed = report.groundSpeedKts { parts.append("\(Int(speed)) kt") }
+        if let distance = report.distanceNM { parts.append(String(format: "%.1f nm away", distance)) }
+        if let registration = report.registration, registration != report.label {
+            parts.append(registration)
+        }
+        return parts.isEmpty ? "Live ADS-B contact" : parts.joined(separator: " · ")
     }
 
     /// Confidence radius from NACp, for the user's own aircraft only — on every
@@ -251,6 +349,8 @@ struct LiveTrafficMapView: View {
         .padding(8)
         .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .padding(10)
+        // Step aside for the selected-aircraft card rather than sitting under it.
+        .padding(.bottom, selectedTrack == nil ? 0 : 78)
     }
 
     private func legendRow(_ color: Color, _ text: String) -> some View {

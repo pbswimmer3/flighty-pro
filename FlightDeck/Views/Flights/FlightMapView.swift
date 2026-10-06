@@ -156,13 +156,8 @@ struct FlightMapView: View {
             layer.fill(Path(ellipseIn: halo), with: .color(Theme.accent.opacity(0.22)))
 
             layer.rotate(by: .degrees(placement.heading))
-            var path = Path()
-            let s: CGFloat = 12
-            path.move(to: CGPoint(x: 0, y: -s))
-            path.addLine(to: CGPoint(x: s * 0.62, y: s * 0.75))
-            path.addLine(to: CGPoint(x: 0, y: s * 0.35))
-            path.addLine(to: CGPoint(x: -s * 0.62, y: s * 0.75))
-            path.closeSubpath()
+            // Same silhouette as the tracking maps — see `AircraftGlyph`.
+            let path = AircraftGlyph.path(size: 12)
             layer.fill(path, with: .color(.white))
             layer.stroke(path, with: .color(.black.opacity(0.6)), lineWidth: 1)
         }

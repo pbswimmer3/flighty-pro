@@ -42,7 +42,7 @@ struct FlightDetailView: View {
         ScrollView {
             VStack(spacing: 14) {
                 mapHeader(flight)
-                statusBanner(flight)
+                FlightStageBar(flight: flight)
                 forecastCard(flight)
                 intelCard
                 timelineCard(flight)
@@ -109,64 +109,6 @@ struct FlightDetailView: View {
         return "See traffic at \(flight.originIATA)"
     }
 
-    // MARK: Status banner
-
-    private func statusBanner(_ flight: Flight) -> some View {
-        let phase = flight.effectivePhase
-        return HStack(spacing: 12) {
-            Image(systemName: phase.isAirborne ? "airplane" : phase.isComplete ? "checkmark.circle.fill" : "clock.fill")
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(bannerTitle(flight))
-                    .font(.system(size: 17, weight: .heavy, design: .rounded))
-                Text(bannerSubtitle(flight))
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .opacity(0.8)
-            }
-            Spacer()
-        }
-        .foregroundStyle(.white)
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(bannerColor(flight).opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func bannerTitle(_ flight: Flight) -> String {
-        switch flight.effectivePhase {
-        case .cancelled: return "Flight cancelled"
-        case .diverted: return "Flight diverted"
-        case .enRoute: return "En route to \(flight.destinationIATA)"
-        case .landed, .arrived: return "Arrived at \(flight.destinationIATA)"
-        case .boarding: return "Boarding soon"
-        case .scheduled:
-            return flight.isDelayed
-                ? "Delayed — departs \(Fmt.delta(flight.departureDelayMinutes))"
-                : "On time"
-        }
-    }
-
-    private func bannerSubtitle(_ flight: Flight) -> String {
-        switch flight.effectivePhase {
-        case .enRoute:
-            return "Lands \(Fmt.relative(flight.bestArrival)) · \(Fmt.time(flight.bestArrival, airportIATA: flight.destinationIATA)) local"
-        case .landed, .arrived:
-            return "Landed \(Fmt.time(flight.bestArrival, airportIATA: flight.destinationIATA)) local"
-        case .cancelled, .diverted:
-            return "Check with \(flight.airlineName) for rebooking"
-        default:
-            return "Departs \(Fmt.relative(flight.bestDeparture)) · \(Fmt.time(flight.bestDeparture, airportIATA: flight.originIATA)) local"
-        }
-    }
-
-    private func bannerColor(_ flight: Flight) -> Color {
-        switch flight.effectivePhase {
-        case .cancelled, .diverted: return Theme.red
-        case .landed, .arrived: return Theme.green
-        default: return flight.isDelayed ? Theme.orange : Theme.accent
-        }
-    }
-
     // MARK: Arrival forecast
 
     @ViewBuilder
@@ -229,32 +171,69 @@ struct FlightDetailView: View {
         var time: String
         var done: Bool
         var highlight: Bool
+        var isEstimated: Bool
     }
 
+    /// Built from `Flight.milestones`, which is also what the notification
+    /// scheduler reads — so the boarding time on this list is by construction
+    /// the same instant that fires the boarding alert.
     private func timelineEntries(_ flight: Flight) -> [TimelineEntry] {
         let now = Date.now
-        let boardingTime = flight.bestDeparture.addingTimeInterval(-40 * 60)
-        let dep = flight.bestDeparture
-        let arr = flight.bestArrival
-        let phase = flight.effectivePhase
-        return [
-            TimelineEntry(title: "Boarding\(flight.departureGate.map { " · Gate \($0)" } ?? "")",
-                          time: Fmt.time(boardingTime, airportIATA: flight.originIATA),
-                          done: now >= boardingTime || phase.isAirborne || phase.isComplete,
-                          highlight: phase == .boarding),
-            TimelineEntry(title: "Departure \(flight.originIATA)",
-                          time: Fmt.time(dep, airportIATA: flight.originIATA),
-                          done: now >= dep || phase.isAirborne || phase.isComplete,
-                          highlight: phase.isAirborne),
-            TimelineEntry(title: "Arrival \(flight.destinationIATA)\(flight.arrivalGate.map { " · Gate \($0)" } ?? "")",
-                          time: Fmt.time(arr, airportIATA: flight.destinationIATA),
-                          done: phase.isComplete,
-                          highlight: false),
-            TimelineEntry(title: "Baggage\(flight.baggageClaim.map { " · Claim \($0)" } ?? "")",
-                          time: Fmt.time(arr.addingTimeInterval(25 * 60), airportIATA: flight.destinationIATA),
-                          done: now >= arr.addingTimeInterval(25 * 60) && phase.isComplete,
-                          highlight: false),
-        ]
+        let next = flight.nextMilestone(at: now)
+        return flight.milestones.map { milestone in
+            let iata = milestone.kind == .landing || milestone.kind == .bags
+                ? flight.destinationIATA
+                : flight.originIATA
+            return TimelineEntry(
+                title: title(for: milestone, flight: flight),
+                time: Fmt.time(milestone.date, airportIATA: iata) + dayMarker(for: milestone, flight: flight),
+                done: now >= milestone.date,
+                highlight: milestone.kind == next?.kind,
+                isEstimated: milestone.isEstimated)
+        }
+    }
+
+    /// A bare time is a lie on any row that isn't on the departure's local
+    /// date. Check-in opens a day earlier, so "11:56 PM" sat above an 11:46 PM
+    /// boarding and read as though it happened after it; a red-eye's arrival
+    /// has the same problem at the other end.
+    private func dayMarker(for milestone: FlightMilestone, flight: Flight) -> String {
+        let originCalendar = flight.originCalendar
+        var milestoneCalendar = originCalendar
+        if milestone.kind == .landing || milestone.kind == .bags {
+            milestoneCalendar.timeZone = flight.destinationAirport?.timeZone ?? .current
+        }
+
+        // Each side's *civil* date in its own zone, then rebuilt in one shared
+        // calendar so the subtraction is plain date arithmetic — which is
+        // exactly what "+1d" on a ticket means.
+        let fields: Set<Calendar.Component> = [.year, .month, .day]
+        guard let departureDay = originCalendar.date(
+                from: originCalendar.dateComponents(fields, from: flight.bestDeparture)),
+              let milestoneDay = originCalendar.date(
+                from: milestoneCalendar.dateComponents(fields, from: milestone.date)),
+              let days = originCalendar.dateComponents([.day], from: departureDay, to: milestoneDay).day,
+              days != 0
+        else { return "" }
+
+        return days > 0 ? " +\(days)d" : " \(days)d"
+    }
+
+    private func title(for milestone: FlightMilestone, flight: Flight) -> String {
+        switch milestone.kind {
+        case .checkIn:
+            return "Check-in opens"
+        case .boarding:
+            return "Boarding\(flight.departureGate.map { " · Gate \($0)" } ?? "")"
+        case .gateClose:
+            return "Gate closes"
+        case .departure:
+            return "Departure \(flight.originIATA)"
+        case .landing:
+            return "Arrival \(flight.destinationIATA)\(flight.arrivalGate.map { " · Gate \($0)" } ?? "")"
+        case .bags:
+            return "Baggage\(flight.baggageClaim.map { " · Claim \($0)" } ?? "")"
+        }
     }
 
     private func timelineRow(_ entry: TimelineEntry) -> some View {
@@ -265,7 +244,9 @@ struct FlightDetailView: View {
                 .font(.system(size: 14, weight: entry.highlight ? .heavy : .semibold, design: .rounded))
                 .foregroundStyle(entry.done || entry.highlight ? Theme.textPrimary : Theme.textSecondary)
             Spacer()
-            Text(entry.time)
+            // A tilde is the whole disclosure: boarding, gate-close and bag
+            // times are worked out from the schedule, not published by anyone.
+            Text(entry.isEstimated ? "~\(entry.time)" : entry.time)
                 .font(Theme.monoFont(13))
                 .foregroundStyle(Theme.textSecondary)
         }

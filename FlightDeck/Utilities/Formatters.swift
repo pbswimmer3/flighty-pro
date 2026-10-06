@@ -45,6 +45,22 @@ enum Fmt {
         return "\(seconds / 60)m ago"
     }
 
+    /// "2h 14m" / "42m" / "38s" / "now" — a forward countdown.
+    ///
+    /// Deliberately not `RelativeDateTimeFormatter`: that produces "in 42
+    /// minutes", which is fine in a sentence and wrong in a badge that already
+    /// says "Boards in". Seconds only appear inside the last minute, where
+    /// they're the difference between hurrying and not.
+    static func countdown(to date: Date, from now: Date = .now) -> String {
+        let seconds = Int(date.timeIntervalSince(now).rounded())
+        if seconds <= 0 { return "now" }
+        if seconds < 60 { return "\(seconds)s" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60, remainder = minutes % 60
+        return remainder > 0 ? "\(hours)h \(remainder)m" : "\(hours)h"
+    }
+
     static func relative(_ date: Date) -> String {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated

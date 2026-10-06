@@ -122,18 +122,11 @@ struct Flight: Identifiable, Codable, Hashable {
 
     /// Phase inferred from the clock — lets demo flights stay "live" and
     /// gives sensible fallbacks when a provider omits status.
-    var effectivePhase: FlightPhase {
-        switch phase {
-        case .cancelled, .diverted, .landed, .arrived:
-            return phase
-        default:
-            let now = Date.now
-            if now >= bestArrival, now >= bestDeparture { return .arrived }
-            if now >= bestDeparture { return .enRoute }
-            if now >= bestDeparture.addingTimeInterval(-40 * 60) { return .boarding }
-            return .scheduled
-        }
-    }
+    ///
+    /// Collapsed out of `stage(at:)` rather than computed separately, so the
+    /// coarse phase and the fine-grained stage on screen can never disagree
+    /// about whether the flight has left. See `FlightStage`.
+    var effectivePhase: FlightPhase { stage().phase }
 
     /// True while the flight is worth auto-refreshing / showing live.
     var isActive: Bool {

@@ -13,8 +13,19 @@ struct FlightCard: View {
             routeRow
             ProgressPlaneBar(progress: flight.progress, activeColor: progressColor)
             timesRow
+            // Only while there's still something to count down to. On a flight
+            // that's over, "Bags in 0m" is noise.
+            if showsStageBar {
+                Divider().overlay(Theme.separator)
+                FlightStageBar(flight: flight, compact: true)
+            }
         }
         .cardStyle()
+    }
+
+    private var showsStageBar: Bool {
+        let stage = flight.stage()
+        return stage != .arrived && stage != .scheduled && stage != .cancelled
     }
 
     // MARK: Subviews
@@ -64,13 +75,9 @@ struct FlightCard: View {
                        iata: flight.originIATA,
                        alignment: .leading)
             Spacer()
-            if phase.isAirborne {
-                VStack(spacing: 1) {
-                    Text("LANDS \(Fmt.relative(flight.bestArrival).uppercased())")
-                        .font(.system(size: 10, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Theme.accent)
-                }
-            }
+            // "Lands in …" used to sit here. It now lives in the stage bar
+            // below, which counts down live instead of rounding to the hour —
+            // two of them on one card was one too many.
             Spacer()
             timeColumn(label: cityName(flight.destinationIATA),
                        scheduled: flight.scheduledArrival,
@@ -110,17 +117,21 @@ struct FlightCard: View {
         return StatusPill(text: text, color: color)
     }
 
+    /// The pill leads with trouble — a delay is what someone scanning a list
+    /// of flights needs to see first. Otherwise it names the stage, so the
+    /// card says "Taxiing" or "Landing soon" rather than a flat "En Route".
     private var statusInfo: (String, Color) {
-        switch phase {
+        let stage = flight.stage()
+        switch stage {
         case .cancelled: return ("Cancelled", Theme.red)
         case .diverted: return ("Diverted", Theme.red)
-        case .enRoute:
+        case .airborne, .landingSoon, .taxiingOut:
             return flight.arrivalDelayMinutes > 10
                 ? ("Late \(flight.arrivalDelayMinutes)m", Theme.orange)
-                : ("En Route", Theme.accent)
-        case .landed, .arrived: return ("Arrived", Theme.green)
-        case .boarding: return ("Boarding", Theme.purple)
-        case .scheduled:
+                : (stage.label, Theme.accent)
+        case .taxiingIn, .atGate, .arrived: return ("Arrived", Theme.green)
+        case .boarding, .gateClosing: return (stage.label, Theme.purple)
+        case .scheduled, .checkInOpen, .boardingSoon:
             return flight.isDelayed
                 ? ("Delayed \(flight.departureDelayMinutes)m", Theme.orange)
                 : ("On Time", Theme.green)

@@ -65,11 +65,20 @@ Tabs: **Flights · Passport · Airports · Connection · Settings**.
 | `DemoFlightProvider` | none | Demo Mode — flights generated relative to *now* |
 | AeroDataBox (RapidAPI) | yes | Real schedules and status |
 | adsb.lol | none | Live aircraft positions, radius traffic search |
+| adsbdb.com | none | Callsign → route + airline (`FlightRouteService`) |
 | FAA NAS Status | none | Ground stops / delay programs (US only) |
 | aviationweather.gov | none | METAR |
 
 `SettingsStore.provider` picks Demo vs AeroDataBox. Demo Mode is treated as
 "on" whenever `demoMode` is set **or** the key is empty.
+
+**AeroDataBox's status endpoint only reaches ±7 days**
+(`AeroDataBoxProvider.scheduleHorizonDays`). Anything outside that is rejected
+before the request with `.dateOutOfRange` — it used to come back as a 2xx whose
+body wasn't a flight list, and surfaced as an unreadable "unexpected response".
+The provider now also accepts both the bare-array and `{"flights": […]}`
+response shapes, treats an empty body as `.notFound`, and passes the service's
+own error text through as `.service`.
 
 ## Subsystems
 
@@ -88,6 +97,41 @@ against `clock`, not `.now`.
 The dividing line is **landing, not the calendar day**. Don't reintroduce
 `isDateInToday` on the past/active split — that made a red-eye disappear at
 midnight while still airborne.
+
+### Stages, milestones and alerts
+
+`Flight.stage(at:)` returns a `FlightStage` — thirteen cases from
+`.checkInOpen` through `.gateClosing`, `.taxiingOut`, `.landingSoon` to
+`.arrived`. It's derived from the clock, so the UI advances on its own and is
+correct in Demo Mode. **`effectivePhase` is collapsed out of `stage()`**, so the
+coarse phase and the fine stage can never disagree; don't reimplement either
+one separately.
+
+Only `.cancelled` and `.diverted` short-circuit on the stored phase. A stored
+`.landed`/`.arrived` deliberately falls through to the clock — otherwise a
+flight a provider marked "arrived" would sit on "Taxiing to gate" forever.
+
+`Flight.milestones` is the single source of dated points (check-in, boarding,
+gate close, departure, landing, bags). The timeline on screen, the countdown in
+`FlightStageBar` and the notification scheduler all read it, so a boarding time
+shown on the flight page is by construction the instant that fires the boarding
+alert. Boarding and gate-close are **derived** (35/50 min and 15/20 min leads,
+domestic/international) and are rendered with a `~` prefix.
+
+`NotificationService` schedules local notifications — no server, no push
+certificate, and they fire with the app closed. Two rules that matter:
+
+- **`sync` clears and rebuilds everything** prefixed `flightdeck.`, so it's
+  idempotent and safe to call often. It's called from `FlightStore.save()`,
+  which every mutation already goes through — that's why nothing has to
+  remember to reschedule.
+- **iOS caps pending local notifications at 64.** `maxPending` is 56, sorted
+  nearest-first, so what gets dropped is always the furthest away.
+
+Change alerts (`FlightChange.between`) are a pure diff between two `Flight`
+snapshots, fired from `FlightStore.refreshActive`. They can only be noticed
+while the app is awake — there is no background refresh — and Settings says so
+in plain words. Don't let the UI imply otherwise.
 
 ### Passport
 
@@ -135,7 +179,20 @@ Two lifetime rules that are easy to break:
 
 Because the traffic canvas sets `allowsHitTesting(false)` so gestures reach the
 map, tap-to-identify is done manually: `MapReader` → `proxy.convert` → nearest
-track within 28 pt.
+track within 28 pt. Both maps do this identically.
+
+**Labels are earned by a tap, never drawn by default.** Printing a callsign
+over every contact turned a busy field into a wall of text, and a callsign on
+its own doesn't answer the question people have — which is where that aircraft
+is *going*. A tap resolves the callsign through `FlightRouteService` (adsbdb,
+keyless, global) and shows `BAW53M / LHR → NAS`. Route lookups are fired on
+selection only; prefetching everything in view would be dozens of requests a
+minute against a free community service. `RouteLookup` is the `@MainActor`
+cache the `Canvas` reads synchronously — it cannot `await` mid-frame.
+
+That route table is a *schedule*, not an observation: it says what that flight
+number usually flies. It's labelled as a lookup everywhere it appears, and a
+miss renders as "Route unknown", not as an error.
 
 Camera follow preserves the user's pinch distance (`cameraDistance`, updated
 from `onMapCameraChange`), and a `simultaneousGesture(DragGesture())` turns
@@ -190,10 +247,21 @@ the card renders a Demo Mode warning. Don't let generated data pass as real.
 
 ## Known gaps
 
-- No push notifications or Live Activities (needs a paid developer account and
-  a server). Delay signals are computed in-app on refresh.
+- **No Live Activities, widgets, Watch app or CarPlay.** All four need an app
+  extension target, which is the one thing that would force editing
+  `project.pbxproj`. Live Activities are the highest-value item left.
+- **No push.** Local notifications cover every alert with a knowable time;
+  change alerts need the app awake. "Faster than the airline" is out of reach
+  without a server.
 - No test target — the forecaster's math (`percentile`, `logit`, `normalCDF`,
-  shrinkage) is the obvious first candidate if one is added.
-- `airports.json` covers ~90 airports; anything else degrades gracefully but
-  loses distance and timezone accuracy.
+  shrinkage) is the obvious first candidate, and `Flight.stage(at:)` /
+  `FlightChange.between` are both pure and now equally worth covering.
+- `airports.json` covers ~110 airports; anything else degrades gracefully but
+  loses distance and timezone accuracy — manually added flights say so.
+- No calendar / TripIt / email import. Calendar is the tractable one.
 - Seat is user-entered; nothing supplies it automatically.
+- `Flight.inbound` ("where's my plane") is only ever populated in Demo Mode —
+  no provider we use returns the previous rotation.
+
+`docs/flighty-research.md` §5 is the full feature-by-feature audit against
+Flighty, and is the place to record anything else that turns out to be missing.

@@ -81,7 +81,15 @@ struct AdsbAircraft: Decodable {
         case nil: break
         }
 
-        let callsign = flight?.trimmingCharacters(in: .whitespaces)
+        // `@` is the unset character in the Mode-S 6-bit alphabet, so a
+        // transponder with no callsign programmed transmits the field as
+        // padding — usually all eight ("@@@@@@@@"), sometimes trailing after a
+        // short callsign. Trimming whitespace alone isn't enough: the padding
+        // survived, `label` stopped falling through to the registration, and a
+        // real airframe (EC-OKH) showed up in the traffic list calling itself
+        // "@@@@@@@@". Real callsigns never contain `@`, so stripping it is safe.
+        let callsign = flight?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "@").union(.whitespaces))
 
         return TrafficReport(
             hex: hex.lowercased(),

@@ -73,6 +73,23 @@ final class FlightStore: ObservableObject {
         save()
     }
 
+    // MARK: - Alerts
+
+    /// Hand the whole upcoming schedule to iOS. Called after anything that
+    /// could move a milestone; `NotificationService.sync` clears and rebuilds,
+    /// so calling it too often is wasteful but never wrong.
+    private func syncNotifications() {
+        let snapshot = flights
+        let preferences = settings.notifications
+        Task { await NotificationService.shared.sync(flights: snapshot, preferences: preferences) }
+    }
+
+    /// Re-derive the alert schedule from outside — on launch, and whenever the
+    /// user changes notification settings.
+    func refreshNotificationSchedule() {
+        syncNotifications()
+    }
+
     func setSeat(_ seat: String?, for flight: Flight) {
         guard var updated = flights.first(where: { $0.id == flight.id }) else { return }
         let trimmed = seat?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -104,8 +121,10 @@ final class FlightStore: ObservableObject {
         var changed = false
         for (idx, flight) in flights.enumerated() where flight.isActive {
             if let updated = try? await provider.refresh(flight: flight) {
+                let previous = flights[idx]
                 flights[idx] = updated
                 changed = true
+                await announceChanges(from: previous, to: updated)
             }
         }
         lastRefresh = .now
@@ -115,9 +134,22 @@ final class FlightStore: ObservableObject {
     func refresh(_ flight: Flight) async {
         guard let idx = flights.firstIndex(where: { $0.id == flight.id }) else { return }
         if let updated = try? await settings.provider.refresh(flight: flight) {
+            let previous = flights[idx]
             flights[idx] = updated
             save()
+            await announceChanges(from: previous, to: updated)
         }
+    }
+
+    /// A refresh is the only moment the app can notice a gate move or a new
+    /// delay — there's no background push to tell it. Whatever the diff finds
+    /// goes out as a notification immediately.
+    private func announceChanges(from previous: Flight, to updated: Flight) async {
+        let changes = FlightChange.between(previous, updated)
+        guard !changes.isEmpty else { return }
+        await NotificationService.shared.announce(changes,
+                                                  for: updated,
+                                                  preferences: settings.notifications)
     }
 
     // MARK: - Sections for the list UI
@@ -220,6 +252,9 @@ final class FlightStore: ObservableObject {
         if let data = try? encoder.encode(flights) {
             try? data.write(to: Self.fileURL, options: .atomic)
         }
+        // Every path that changes a flight goes through here, which makes this
+        // the one place the alert schedule can't be forgotten.
+        syncNotifications()
     }
 
     private func load() {

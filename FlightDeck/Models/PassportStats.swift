@@ -75,8 +75,14 @@ struct PassportStats {
         var flightsCounted = 0
         var delayedFlights = 0
         var cancelledFlights = 0
-        /// Sum of positive arrival delays only — arriving early doesn't buy
-        /// back an hour you already lost.
+        /// Sum of arrival delay across the flights that *count* as delayed —
+        /// i.e. only those past the 15-minute DOT threshold, not every flight
+        /// that landed a minute or two late.
+        ///
+        /// It has to be scoped that way for `averageDelayMinutes` below to mean
+        /// anything: that divides by `delayedFlights`, so summing every
+        /// small positive delay into the numerator would inflate "when it goes
+        /// wrong, this is how wrong" with flights that never went wrong.
         var totalDelayMinutes = 0
         var worst: DelayRecord?
         /// Airlines ranked by delayed-flight count, with their rate in `detail`.

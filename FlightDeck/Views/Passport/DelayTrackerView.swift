@@ -185,7 +185,7 @@ struct DelayTrackerView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Time lost adds up positive arrival delays only. Arriving early doesn't refund an hour you already spent at a gate.")
+            Text("Time lost adds up the arrival delay on those delayed flights only — a flight that landed a few minutes late doesn't count against you, and arriving early doesn't refund an hour you already spent at a gate.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

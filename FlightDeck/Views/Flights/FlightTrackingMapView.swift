@@ -59,9 +59,14 @@ struct FlightTrackingMapView: View {
     @ObservedObject var tracker: AircraftTracker
 
     @StateObject private var traffic = TrafficStore()
+    @StateObject private var routes = RouteLookup()
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var camera: MapCameraPosition = .automatic
+    /// Seeded in `init`, not left as `.automatic`. Setting the position from
+    /// `onAppear` is too late — MapKit has already framed the route line and
+    /// annotations, and the map opens on the whole continent instead of on the
+    /// aircraft, which makes tapping any traffic impossible.
+    @State private var camera: MapCameraPosition
     /// Whatever the user last pinched to, so recentring doesn't reset it.
     @State private var cameraDistance: CLLocationDistance = 90_000
     @State private var isFollowing = true
@@ -90,6 +95,10 @@ struct FlightTrackingMapView: View {
             ?? AirportDatabase.shared.airport(iata: flight.destinationIATA)?.coordinate
             ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
         _queryCenter = State(initialValue: anchor)
+        _camera = State(initialValue: .camera(MapCamera(centerCoordinate: anchor,
+                                                        distance: initialScope.cameraDistance,
+                                                        heading: 0,
+                                                        pitch: 0)))
     }
 
     // MARK: - Geometry
@@ -198,6 +207,14 @@ struct FlightTrackingMapView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             anchorCameraIfNeeded()
+            // Re-anchor the search before the *first* poll, for the same reason
+            // `anchorCameraIfNeeded` re-aims the camera: `init` can only see the
+            // live fix or the origin airport, so an airborne flight with no
+            // ADS-B contact opened its first radius search over the departure
+            // airport. `recenterIfDrifted` corrected it, but only on the second
+            // poll — long enough to caption a thousand-mile-away apron
+            // "48 on ground · just now" while the aircraft sat over Nebraska.
+            queryCenter = anchorCoordinate()
             startPolling()
             startTrackingOwnAircraft()
         }
@@ -224,6 +241,14 @@ struct FlightTrackingMapView: View {
             recenterIfDrifted()
             if isFollowing { applyCamera(animated: true) }
         }
+        // Without an ADS-B contact there are no fixes to key off, so the poll
+        // itself provides the cadence — the estimated position still moves, and
+        // both the camera and the search radius have to move with it.
+        .onChange(of: traffic.lastUpdate) { _, _ in
+            guard tracker.track == nil else { return }
+            recenterIfDrifted()
+            if isFollowing { applyCamera(animated: true) }
+        }
     }
 
     private var airportDot: some View {
@@ -235,6 +260,10 @@ struct FlightTrackingMapView: View {
 
     // MARK: - Camera
 
+    /// Corrects the seed camera once the view exists. `init` can only see the
+    /// live track or the origin airport; by the time this runs, a route-based
+    /// estimate is available too, so an airborne flight recentres from its
+    /// origin onto the aircraft.
     private func anchorCameraIfNeeded() {
         guard !didAnchorCamera else { return }
         didAnchorCamera = true
@@ -293,8 +322,15 @@ struct FlightTrackingMapView: View {
         tracker.start(callSign: callSign, interval: 5)
     }
 
+    /// Re-anchor the radius search on wherever the aircraft is now.
+    ///
+    /// Deliberately reads `anchorCoordinate()` rather than the ADS-B fix: with
+    /// no contact the aircraft is still placed on its route from the clock, and
+    /// keying off the fix alone left the traffic search sitting at the origin
+    /// airport for the whole flight — the map showed the aircraft over Nebraska
+    /// and the traffic list showed the apron at SFO.
     private func recenterIfDrifted() {
-        guard let coordinate = tracker.track?.report.coordinate else { return }
+        let coordinate = anchorCoordinate()
         let driftNM = GreatCircle.distanceMiles(from: queryCenter, to: coordinate) / 1.15078
         guard driftNM > recenterThresholdNM else { return }
         queryCenter = coordinate
@@ -326,8 +362,9 @@ struct FlightTrackingMapView: View {
                       size: CGSize,
                       proxy: MapProxy,
                       now: Date) {
-        var claimed: [CGRect] = []
-        let labelBudget = 14
+        // Where the selected aircraft ended up, so its callout can be drawn
+        // last and therefore on top of every other symbol.
+        var selectedAnchor: (point: CGPoint, size: CGFloat)?
 
         for track in otherTracks {
             let rendered = track.state(at: now)
@@ -335,45 +372,67 @@ struct FlightTrackingMapView: View {
             guard point.x > -40, point.y > -40,
                   point.x < size.width + 40, point.y < size.height + 40 else { continue }
 
+            let isSelected = track.report.hex == selectedHex
             let style = TrafficSymbol(report: track.report, isOwn: false, isStale: rendered.isStale)
             AircraftGlyph.draw(&context, at: point,
                                heading: rendered.headingDegrees,
                                hasHeading: track.report.headingDegrees != nil,
                                style: style,
-                               isSelected: track.report.hex == selectedHex)
+                               isSelected: isSelected)
 
-            // On the ground, movers are the interesting ones — that's the queue
-            // ahead of you. In the air, label everything that fits.
-            let deserves = track.report.hex == selectedHex
-                || !track.report.onGround
-                || !track.report.isStationary
-            guard deserves, claimed.count < labelBudget else { continue }
-
-            let text = label(for: track)
-            let origin = CGPoint(x: point.x, y: point.y + style.size + 8)
-            let box = CGRect(x: origin.x - CGFloat(text.count) * 2.5, y: origin.y,
-                             width: CGFloat(text.count) * 5, height: 11)
-            guard !claimed.contains(where: { $0.intersects(box) }) else { continue }
-            claimed.append(box)
-
-            context.draw(Text(text)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(style.color.opacity(style.opacity)),
-                         at: origin, anchor: .top)
+            if isSelected { selectedAnchor = (point, style.size) }
         }
 
-        drawOwnAircraft(&context, size: size, proxy: proxy, now: now)
+        let ownAnchor = drawOwnAircraft(&context, size: size, proxy: proxy, now: now)
+
+        // Labels are earned by a tap, not handed out. Printing a callsign over
+        // every contact meant that in busy airspace the map was mostly text,
+        // and none of it answered the question people actually have — which is
+        // where that aircraft is going, not what it's called.
+        if isOwnSelected, let anchor = ownAnchor {
+            AircraftGlyph.drawCallout(&context,
+                                      at: CGPoint(x: anchor.point.x, y: anchor.point.y + anchor.size + 9),
+                                      title: flight.displayNumber,
+                                      subtitle: "\(flight.originIATA) → \(flight.destinationIATA)",
+                                      width: size.width)
+        } else if let anchor = selectedAnchor, let track = selectedTrack {
+            let lines = calloutLines(for: track)
+            AircraftGlyph.drawCallout(&context,
+                                      at: CGPoint(x: anchor.point.x, y: anchor.point.y + anchor.size + 9),
+                                      title: lines.0,
+                                      subtitle: lines.1,
+                                      width: size.width)
+        }
     }
 
+    /// Both sides being nil would otherwise count our own aircraft as selected
+    /// whenever nothing at all is.
+    private var isOwnSelected: Bool {
+        selectedHex != nil && selectedHex == tracker.track?.report.hex
+    }
+
+    /// Callsign on top, route underneath — "BAW117" / "LHR → JFK".
+    private func calloutLines(for track: TrafficStore.Track) -> (String, String?) {
+        let name = track.report.label
+        if let route = routes.route(for: track.report.callsign) {
+            return (route.displayNumber ?? name, route.arrow)
+        }
+        if routes.isLoading(track.report.callsign) { return (name, "Looking up route…") }
+        return (name, nil)
+    }
+
+    /// Returns where it landed on screen, so the caller can hang a callout off
+    /// it without recomputing the projection.
+    @discardableResult
     private func drawOwnAircraft(_ context: inout GraphicsContext,
                                  size: CGSize,
                                  proxy: MapProxy,
-                                 now: Date) {
+                                 now: Date) -> (point: CGPoint, size: CGFloat)? {
         guard let own = ownPosition(at: now),
               let point = proxy.convert(own.coordinate, to: .local),
               point.x > -40, point.y > -40,
               point.x < size.width + 40, point.y < size.height + 40
-        else { return }
+        else { return nil }
 
         if let accuracy = own.accuracyMetres {
             drawAccuracyRing(&context, at: point, metres: accuracy,
@@ -389,14 +448,12 @@ struct FlightTrackingMapView: View {
         }
 
         let style = TrafficSymbol(own: own.isStale)
-        // Both sides being nil would otherwise ring our own aircraft whenever
-        // nothing at all is selected.
-        let isSelected = selectedHex != nil && selectedHex == tracker.track?.report.hex
         AircraftGlyph.draw(&context, at: point,
                            heading: own.heading,
                            hasHeading: own.hasHeading,
                            style: style,
-                           isSelected: isSelected)
+                           isSelected: isOwnSelected)
+        return (point, style.size)
     }
 
     private func drawAccuracyRing(_ context: inout GraphicsContext,
@@ -412,14 +469,6 @@ struct FlightTrackingMapView: View {
                           width: radius * 2, height: radius * 2)
         context.fill(Path(ellipseIn: rect), with: .color(Theme.accent.opacity(0.12)))
         context.stroke(Path(ellipseIn: rect), with: .color(Theme.accent.opacity(0.5)), lineWidth: 1)
-    }
-
-    private func label(for track: TrafficStore.Track) -> String {
-        let name = track.report.label
-        if let speed = track.report.groundSpeedKts, speed >= DeadReckoning.Limits.stationaryKts {
-            return "\(name) · \(Int(speed))kt"
-        }
-        return name
     }
 
     // MARK: - Selection
@@ -440,8 +489,17 @@ struct FlightTrackingMapView: View {
             }
         }
 
+        let newSelection = (best?.hex == selectedHex) ? nil : best?.hex
         withAnimation(.easeInOut(duration: 0.15)) {
-            selectedHex = (best?.hex == selectedHex) ? nil : best?.hex
+            selectedHex = newSelection
+        }
+        // Resolve the route only for what the user actually asked about.
+        // Prefetching every contact in view would be dozens of requests a
+        // minute against a free community service for information nobody
+        // looked at.
+        if let hex = newSelection,
+           let callsign = traffic.tracks.first(where: { $0.report.hex == hex })?.report.callsign {
+            routes.lookup(callsign)
         }
     }
 
@@ -523,7 +581,7 @@ struct FlightTrackingMapView: View {
             controlButton("minus.magnifyingglass") { zoom(by: 2.0) }
         }
         .padding(.trailing, 12)
-        .padding(.bottom, selectedTrack == nil ? 120 : 210)
+        .padding(.bottom, selectedTrack == nil ? 184 : 274)
     }
 
     private func controlButton(_ systemName: String,
@@ -549,7 +607,10 @@ struct FlightTrackingMapView: View {
             ownAircraftCard
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 28)
+        // The map deliberately runs under the safe area, so this has to clear
+        // the floating tab bar by hand — otherwise the own-aircraft card is
+        // half-hidden behind it.
+        .padding(.bottom, 92)
     }
 
     private func selectedCard(_ track: TrafficStore.Track) -> some View {
@@ -573,6 +634,7 @@ struct FlightTrackingMapView: View {
                             .foregroundStyle(Theme.orange)
                     }
                 }
+                routeLine(for: report)
                 Text(detailLine(report))
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.textSecondary)
@@ -590,6 +652,35 @@ struct FlightTrackingMapView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// Where that aircraft is headed. Held to the same standard as the
+    /// positions on this map: it comes from a community route table keyed on
+    /// callsign, so it says what that flight number usually flies — hence
+    /// "scheduled route", not a claim about this airframe today.
+    @ViewBuilder
+    private func routeLine(for report: TrafficReport) -> some View {
+        if let route = routes.route(for: report.callsign) {
+            HStack(spacing: 6) {
+                Text(route.arrow)
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Theme.accent)
+                if let airline = route.airlineName {
+                    Text(airline)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.textTertiary)
+                        .lineLimit(1)
+                }
+            }
+        } else if routes.isLoading(report.callsign) {
+            Text("Looking up route…")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(Theme.textTertiary)
+        } else if routes.isUnknown(report.callsign) {
+            Text("Route unknown")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(Theme.textTertiary)
+        }
     }
 
     private func detailLine(_ report: TrafficReport) -> String {

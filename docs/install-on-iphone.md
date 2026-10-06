@@ -61,7 +61,14 @@ Plug in via USB and tap **Trust**.
    trigger in Xcode Cloud.
 
 ## 6. Other Apple app repos
-Repeat steps 3–5 per repo (each needs its own unique bundle ID and its own
+Each app repo has its own guide at `docs/install-on-iphone.md`:
+[Fiend](https://github.com/pbswimmer3/Fiend_Urge_Tracker/blob/claude/build-fiend-ios-app-Mv1ZC/docs/install-on-iphone.md)
+(same Xcode → TestFlight → Xcode Cloud path, plus App Group and widget
+setup) and
+[Ride Compare](https://github.com/pbswimmer3/ride-compare/blob/main/docs/install-on-iphone.md)
+(Expo: EAS Build → TestFlight, no Mac needed).
+
+For any other repo, repeat steps 3–5 (each needs its own unique bundle ID and its own
 App Store Connect app record). Check each for capabilities that need
 portal setup (Push, iCloud, App Groups, Widgets, Sign in with Apple); Xcode's
 automatic signing registers these for you once the paid team is selected.

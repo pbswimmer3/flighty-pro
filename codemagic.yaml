@@ -11,7 +11,7 @@ workflows:
         # APP_STORE_CONNECT_PRIVATE_KEY (the .p8), CERTIFICATE_PRIVATE_KEY (RSA, PEM)
         - app_store_connect
       vars:
-        BUNDLE_ID: com.pradbiswas.flightdeck
+        BUNDLE_ID: com.personal.flightdeck
         XCODE_PROJECT: FlightDeck.xcodeproj
         XCODE_SCHEME: FlightDeck
       xcode: latest

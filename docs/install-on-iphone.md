@@ -1,9 +1,9 @@
 # Getting FlightDeck (and other personal apps) onto your iPhone — permanently
 
 Findings from the repo: SwiftUI, iOS 17+, zero dependencies, no backend, no
-entitlements/capabilities, Automatic signing, bundle ID `com.pradbiswas.flightdeck`,
-and a hard-coded `DEVELOPMENT_TEAM = MMKLPPVX8S` (an old/personal team — you
-will replace it, see step 3). Demo Mode works with no API key.
+entitlements/capabilities, Automatic signing, bundle ID `com.personal.flightdeck`,
+and `DEVELOPMENT_TEAM = MMKLPPVX8S`, which is the paid team (the bundle ID
+is already registered there). Demo Mode works with no API key.
 
 ## Why TestFlight is the "always running" path
 
@@ -70,8 +70,7 @@ Once:
    API → Team Keys → **+**, access **Admin** (needed to create certificates and
    profiles). Download the `.p8` (one chance only); note Key ID and Issuer ID.
 2. App Store Connect → Apps → **+ New App** with bundle ID
-   `com.pradbiswas.flightdeck` (register it first under Certificates,
-   Identifiers & Profiles → Identifiers if it is not in the list).
+   `com.personal.flightdeck`.
 3. codemagic.io: add the `pbswimmer3/flighty-pro` repo. Team/App settings →
    Environment variables, group **`app_store_connect`** (all secure):
    `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_IDENTIFIER`,

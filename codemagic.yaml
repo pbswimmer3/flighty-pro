@@ -1,0 +1,44 @@
+# Cloud build: Codemagic's Mac signs FlightDeck and uploads it to TestFlight,
+# so no Mac is needed. One-time setup: docs/install-on-iphone.md, "No Mac".
+workflows:
+  testflight:
+    name: FlightDeck to TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      groups:
+        # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
+        # APP_STORE_CONNECT_PRIVATE_KEY (the .p8), CERTIFICATE_PRIVATE_KEY (RSA, PEM)
+        - app_store_connect
+      vars:
+        BUNDLE_ID: com.pradbiswas.flightdeck
+        XCODE_PROJECT: FlightDeck.xcodeproj
+        XCODE_SCHEME: FlightDeck
+      xcode: latest
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Signing files
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Build number
+        # Codemagic's counter; TestFlight needs a new number for every upload.
+        script: |
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/" "$XCODE_PROJECT/project.pbxproj"
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID

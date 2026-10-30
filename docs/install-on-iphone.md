@@ -2,8 +2,8 @@
 
 Findings from the repo: SwiftUI, iOS 17+, zero dependencies, no backend, no
 entitlements/capabilities, Automatic signing, bundle ID `com.personal.flightdeck`,
-and a hard-coded `DEVELOPMENT_TEAM = MMKLPPVX8S` (an old/personal team — you
-will replace it, see step 3). Demo Mode works with no API key.
+and `DEVELOPMENT_TEAM = MMKLPPVX8S`, which is the paid team (the bundle ID
+is already registered there). Demo Mode works with no API key.
 
 ## Why TestFlight is the "always running" path
 
@@ -59,6 +59,29 @@ Plug in via USB and tap **Trust**.
 4. Builds expire after 90 days. Re-run the workflow (or push anything) at
    least every ~2 months. Tip: add a calendar reminder or a monthly scheduled
    trigger in Xcode Cloud.
+
+## No Mac: Codemagic → TestFlight
+`codemagic.yaml` builds on Codemagic's Macs (free personal tier) and uploads
+to TestFlight. Signing is automatic: the build creates the App Store profile
+and, the first time, an Apple Distribution certificate.
+
+Once:
+1. App Store Connect → Users and Access → Integrations → App Store Connect
+   API → Team Keys → **+**, access **Admin** (needed to create certificates and
+   profiles). Download the `.p8` (one chance only); note Key ID and Issuer ID.
+2. App Store Connect → Apps → **+ New App** with bundle ID
+   `com.personal.flightdeck`.
+3. codemagic.io: add the `pbswimmer3/flighty-pro` repo. Team/App settings →
+   Environment variables, group **`app_store_connect`** (all secure):
+   `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_IDENTIFIER`,
+   `APP_STORE_CONNECT_PRIVATE_KEY` (the whole `.p8` text) and
+   `CERTIFICATE_PRIVATE_KEY` (an RSA key: `ssh-keygen -t rsa -b 2048 -m PEM -f cert_key -q -N ""`).
+   Keep that RSA key: later builds reuse the certificate made from it.
+4. Start workflow **FlightDeck to TestFlight**. Then TestFlight → Internal
+   Testing group with your Apple ID, automatic distribution on.
+
+Each push to `main` (or a manual start) makes a new TestFlight build.
+Builds expire after 90 days.
 
 ## 6. Other Apple app repos
 Each app repo has its own guide at `docs/install-on-iphone.md`:

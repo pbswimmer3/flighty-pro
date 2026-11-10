@@ -1,0 +1,48 @@
+# Reply on a TestFlight feedback issue, or on the PR Claude opened for it,
+# with a comment that starts with "@claude" — "@claude the caption is still
+# wrong on the Ground tab", "@claude try again" — and the fix runs again with
+# your comments as context, building on the existing branch.
+#
+# Only comments from the repository owner count: this repo is public, and
+# anyone else's comment must not be able to start a Claude run.
+name: TestFlight feedback follow-up
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, '@claude') &&
+      (contains(github.event.issue.labels.*.name, 'testflight-feedback') ||
+       (github.event.issue.pull_request && contains(github.event.issue.body, 'filed from TestFlight feedback')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # start testflight-feedback.yml
+      issues: write # the 👀 reaction
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null }}
+          BODY: ${{ github.event.issue.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          target="$NUMBER"
+          if [ "$IS_PR" = "true" ]; then
+            # A fix PR says "Fixes #N"; the feedback lives on issue N.
+            target=$(printf '%s' "$BODY" | grep -oE 'Fixes #[0-9]+' | head -n1 | tr -dc '0-9')
+          fi
+          if [ -z "$target" ]; then
+            echo "::error::Couldn't find the feedback issue for #$NUMBER"
+            exit 1
+          fi
+          gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes > /dev/null || true
+          gh workflow run testflight-feedback.yml --repo "$REPO" --ref main -f issue="$target"
+          echo "Started a fix run for issue #$target"

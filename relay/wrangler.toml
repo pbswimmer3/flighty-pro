@@ -5,6 +5,11 @@ main = "src/index.js"
 compatibility_date = "2025-06-01"
 workers_dev = true
 
+# Request logs and console output in the dashboard (Worker → Observability),
+# the first place to look if a delivery fails.
+[observability]
+enabled = true
+
 [vars]
 GITHUB_REPO = "pbswimmer3/flighty-pro"
 WORKFLOW_FILE = "testflight-feedback.yml"

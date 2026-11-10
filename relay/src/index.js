@@ -32,31 +32,45 @@ const FEEDBACK_KINDS = {
 
 // App Store Connect resource IDs are opaque, but they never need more than
 // this. Anything else is refused before it reaches a workflow input.
-const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+// A leading "-" is refused too, so an id can never be read as a CLI flag.
+const ID_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$/;
 
 export default {
   async fetch(request, env) {
     if (request.method !== "POST") {
       return text(405, "FlightDeck feedback relay: POST only.");
     }
-    if (!env.APPLE_WEBHOOK_SECRET || !env.GITHUB_TOKEN || !env.GITHUB_REPO) {
-      return text(500, "Relay is missing configuration.");
+    if (!env.APPLE_WEBHOOK_SECRET) {
+      return text(500, "Relay is missing APPLE_WEBHOOK_SECRET.");
     }
 
-    const body = await request.text();
+    // HMAC over the bytes exactly as received, not a re-encoded string.
+    const body = new Uint8Array(await request.arrayBuffer());
     const signature = request.headers.get("x-apple-signature") || "";
     if (!(await verifySignature(env.APPLE_WEBHOOK_SECRET, body, signature))) {
       return text(401, "Bad signature.");
     }
+    // Checked after the signature so an unauthenticated caller learns nothing
+    // about how the relay is configured.
+    if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+      return text(500, "Relay is missing GITHUB_TOKEN or GITHUB_REPO.");
+    }
 
     let event;
     try {
-      event = JSON.parse(body);
+      event = JSON.parse(new TextDecoder().decode(body));
     } catch {
       return text(400, "Body is not JSON.");
     }
 
     const feedback = classify(event);
+    if (feedback === UNREADABLE) {
+      // A feedback event we couldn't get an ID out of. Answer with an error so
+      // it shows as FAILED in the setup workflow's `deliveries` list instead
+      // of passing silently; the daily sweep still picks the feedback up.
+      console.error("Feedback event without a usable instance id", JSON.stringify(event).slice(0, 2000));
+      return text(422, "Feedback event, but no usable instance id.");
+    }
     if (!feedback) {
       // Pings and any event type we didn't subscribe to: acknowledge, so App
       // Store Connect's "Test Your Webhook" reports success, and do nothing.
@@ -89,12 +103,16 @@ export async function verifySignature(secret, body, header) {
     false,
     ["verify"],
   );
-  return crypto.subtle.verify("HMAC", key, hexToBytes(match[1]), encoder.encode(body));
+  const bytes = typeof body === "string" ? encoder.encode(body) : body;
+  return crypto.subtle.verify("HMAC", key, hexToBytes(match[1]), bytes);
 }
 
+/** Returned by `classify` for a feedback event whose id can't be used. */
+export const UNREADABLE = Symbol("unreadable feedback event");
+
 /**
- * Pull `{kind, id}` out of a notification, or null if it isn't TestFlight
- * feedback. Apple's documented shape is
+ * Pull `{kind, id}` out of a notification: null if it isn't TestFlight
+ * feedback, UNREADABLE if it is but carries no id we can safely pass on. Apple's documented shape is
  * `{data: {type, id, attributes, relationships: {instance: {data: {type, id}}}}}`;
  * a few event families put `{type, id}` directly under `instance`, so both are
  * accepted.
@@ -105,8 +123,9 @@ export function classify(event) {
   const instance = data.relationships?.instance;
   const target = instance?.data ?? instance ?? {};
   const kind = FEEDBACK_KINDS[data.type] ?? FEEDBACK_KINDS[target.type];
+  if (!kind) return null;
   const id = target.id;
-  if (!kind || typeof id !== "string" || !ID_PATTERN.test(id)) return null;
+  if (typeof id !== "string" || !ID_PATTERN.test(id)) return UNREADABLE;
   return { kind, id };
 }
 

@@ -2,7 +2,7 @@
 // would call it, with GitHub's API replaced by a stub.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { verifySignature, classify } from "../src/index.js";
+import worker, { verifySignature, classify, UNREADABLE } from "../src/index.js";
 
 const SECRET = "s3cret-for-tests";
 const env = {
@@ -112,7 +112,10 @@ test("pings and other events are acknowledged and ignored", async () => {
 test("ids that aren't plain tokens are refused", () => {
   const evil = { data: { type: "betaFeedbackCrashSubmissionCreated",
     relationships: { instance: { data: { id: "x; rm -rf /" } } } } };
-  assert.equal(classify(evil), null);
+  assert.equal(classify(evil), UNREADABLE);
+  const flag = { data: { type: "betaFeedbackCrashSubmissionCreated",
+    relationships: { instance: { data: { id: "-rf" } } } } };
+  assert.equal(classify(flag), UNREADABLE);
   assert.deepEqual(classify({ data: { type: "betaFeedbackCrashSubmissionCreated",
     relationships: { instance: { type: "betaFeedbackCrashSubmissions", id: "OK1" } } } }),
     { kind: "crash", id: "OK1" });
@@ -132,4 +135,30 @@ test("non-POST is refused without touching GitHub", async () => {
     assert.equal(res.status, 405);
     assert.equal(calls.length, 0);
   });
+});
+
+test("a feedback event with no usable id fails visibly (422) and dispatches nothing", async () => {
+  const body = JSON.stringify({ data: { type: "betaFeedbackScreenshotSubmissionCreated",
+    relationships: { instance: { data: { type: "betaFeedbackScreenshotSubmissions" } } } } });
+  await withStubbedFetch(204, async (calls) => {
+    const res = await post(body, await sign(SECRET, body));
+    assert.equal(res.status, 422);
+    assert.equal(calls.length, 0);
+  });
+});
+
+test("the signature covers raw bytes, including non-ASCII text", async () => {
+  const body = feedbackEvent("betaFeedbackScreenshotSubmissionCreated",
+    "betaFeedbackScreenshotSubmissions", "UNI1").replace("2026", "2026 ✈️ café");
+  await withStubbedFetch(204, async (calls) => {
+    assert.equal((await post(body, await sign(SECRET, body))).status, 202);
+    assert.equal(calls.length, 1);
+  });
+});
+
+test("an unsigned request learns nothing about missing GitHub config", async () => {
+  const body = "{}";
+  const res = await worker.fetch(new Request("https://relay.example/", { method: "POST", body }),
+    { APPLE_WEBHOOK_SECRET: SECRET });
+  assert.equal(res.status, 401);
 });

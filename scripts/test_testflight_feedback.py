@@ -385,6 +385,15 @@ class Deliveries(unittest.TestCase):
         self.assertEqual([r["state"] for r in rows], ["?", "FAILED"])
         tf.print_deliveries(rows)  # must not raise on missing state/status
 
+    def test_always_sends_a_created_date_filter(self):
+        # Apple returns HTTP 400 "Filter is required" without one.
+        asc = mock.Mock()
+        asc.get.return_value = {"data": []}
+        tf.fetch_deliveries(asc, "w1")
+        params = asc.get.call_args[0][1]
+        self.assertRegex(params["filter[createdDateGreaterThanOrEqualTo]"],
+                         r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.000Z$")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -342,7 +342,9 @@ struct FlightTrackingMapView: View {
     /// coming back from the background, where it was deliberately stopped.
     private func startTrackingOwnAircraft() {
         guard flight.isLiveData, flight.isActive, let callSign = flight.callSign else { return }
-        tracker.start(callSign: callSign, interval: 5)
+        tracker.start(callSign: callSign,
+                      leg: (flight.originIATA, flight.destinationIATA),
+                      interval: 5)
     }
 
     /// Re-anchor the radius search on wherever the aircraft is now.

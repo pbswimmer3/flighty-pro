@@ -66,7 +66,9 @@ struct FlightMapView: View {
             tracker.stop()
             return
         }
-        tracker.start(callSign: callSign, interval: 5)
+        tracker.start(callSign: callSign,
+                      leg: (flight.originIATA, flight.destinationIATA),
+                      interval: 5)
     }
 
     @ViewBuilder

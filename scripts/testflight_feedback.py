@@ -878,10 +878,15 @@ def deliveries(args) -> int:
 
 
 def fetch_deliveries(asc: AppStoreConnect, webhook_id: str, since: dt.datetime | None = None) -> list[dict]:
-    """Newest first — sorted here rather than trusting the API's order."""
-    params = {"limit": "20", "include": "event"}
-    if since:
-        params["filter[createdDateGreaterThanOrEqualTo]"] = since.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    """Newest first — sorted here rather than trusting the API's order.
+
+    Apple requires exactly one createdDate filter on this endpoint (HTTP 400
+    PARAMETER_ERROR.INVALID without it), so "all recent" means the last 30 days.
+    """
+    if since is None:
+        since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+    params = {"limit": "20", "include": "event",
+              "filter[createdDateGreaterThanOrEqualTo]": since.strftime("%Y-%m-%dT%H:%M:%S.000Z")}
     document = asc.get(f"/v1/webhooks/{webhook_id}/deliveries", params)
     events = {inc.get("id"): inc.get("attributes", {}) or {} for inc in document.get("included", [])}
     rows = []

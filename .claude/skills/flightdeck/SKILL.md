@@ -241,8 +241,23 @@ minute against a free community service. `RouteLookup` is the `@MainActor`
 cache the `Canvas` reads synchronously — it cannot `await` mid-frame.
 
 That route table is a *schedule*, not an observation: it says what that flight
-number usually flies. It's labelled as a lookup everywhere it appears, and a
-miss renders as "Route unknown", not as an error.
+number usually flies, one leg per number, while airlines reuse a number for
+both legs of a rotation. So every route is printed through `RouteLabel`, never
+as a bare `route.arrow`:
+- When the schedule fits, the label is the route marked "Scheduled".
+- When the aircraft is visibly flying the other leg, the label says what it's
+  doing ("Arriving SFO", "Departing SFO") and adds "Schedule says …". Visibly
+  flying the other leg means low near the scheduled origin, descending and
+  heading in, or climbing out of the scheduled destination.
+
+A miss renders as "Route unknown", not as an error.
+
+**The user's own aircraft is never described by a callsign lookup.** It's in
+`traffic.tracks` like any contact, but tapping it shows the user's flight
+(callout and `ownAircraftCard`); `selectedTrack` excludes it. Looking its
+callsign up showed the other leg of the user's own rotation ("QXE2187 SFO →
+LAX" while landing at SFO), which read as "the app is tracking a different
+plane" (#13).
 
 Camera follow preserves the user's pinch distance (`cameraDistance`, updated
 from `onMapCameraChange`), and a `simultaneousGesture(DragGesture())` turns

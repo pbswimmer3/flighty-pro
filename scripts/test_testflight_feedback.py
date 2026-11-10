@@ -393,6 +393,10 @@ class Deliveries(unittest.TestCase):
         params = asc.get.call_args[0][1]
         self.assertRegex(params["filter[createdDateGreaterThanOrEqualTo]"],
                          r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.000Z$")
+        # ...and Apple rejects one more than 10 days back.
+        sent = tf.dt.datetime.strptime(params["filter[createdDateGreaterThanOrEqualTo]"],
+                                       "%Y-%m-%dT%H:%M:%S.000Z").replace(tzinfo=tf.dt.timezone.utc)
+        self.assertLess(tf.dt.datetime.now(tf.dt.timezone.utc) - sent, tf.dt.timedelta(days=10))
 
 
 if __name__ == "__main__":

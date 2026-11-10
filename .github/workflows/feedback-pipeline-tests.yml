@@ -1,0 +1,42 @@
+# Tests for the feedback pipeline itself (relay + script). The iOS app is
+# compile-checked by Codemagic, not here.
+name: Feedback pipeline tests
+
+on:
+  pull_request:
+    paths:
+      - "relay/**"
+      - "scripts/**"
+      - ".github/workflows/testflight-*.yml"
+      - ".github/workflows/feedback-pipeline-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "relay/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Relay
+        working-directory: relay
+        run: npm test
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install "pyjwt[crypto]>=2.8,<3"
+      - name: Feedback script
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name ci
+          git config --global init.defaultBranch main
+          python3 -m unittest discover -s scripts -p 'test_*.py' -v

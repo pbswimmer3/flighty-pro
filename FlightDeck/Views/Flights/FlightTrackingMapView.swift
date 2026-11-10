@@ -398,7 +398,8 @@ struct FlightTrackingMapView: View {
             let isSelected = track.report.hex == selectedHex
             let style = TrafficSymbol(report: track.report, isOwn: false, isStale: rendered.isStale)
             AircraftGlyph.draw(&context, at: point,
-                               heading: rendered.headingDegrees,
+                               heading: screenHeading(rendered.headingDegrees,
+                                                      at: rendered.coordinate, point: point, proxy: proxy),
                                hasHeading: track.report.headingDegrees != nil,
                                style: style,
                                isSelected: isSelected)
@@ -472,11 +473,31 @@ struct FlightTrackingMapView: View {
 
         let style = TrafficSymbol(own: own.isStale)
         AircraftGlyph.draw(&context, at: point,
-                           heading: own.heading,
+                           heading: screenHeading(own.heading,
+                                                  at: own.coordinate, point: point, proxy: proxy),
                            hasHeading: own.hasHeading,
                            style: style,
                            isSelected: isOwnSelected)
         return (point, style.size)
+    }
+
+    /// A true-north heading turned into the angle to draw on screen.
+    ///
+    /// The canvas is screen-space, but the map can be rotated (the compass
+    /// button, or a two-finger twist), and then "up" is no longer north — a
+    /// glyph rotated by the raw heading points the wrong way on a rotated map.
+    /// Projecting a point a little way along the heading and measuring the
+    /// screen angle folds in the map's rotation without tracking camera state.
+    private func screenHeading(_ heading: Double,
+                               at coordinate: CLLocationCoordinate2D,
+                               point: CGPoint,
+                               proxy: MapProxy) -> Double {
+        let ahead = GreatCircle.destination(from: coordinate, bearingDegrees: heading, distanceMetres: 1_000)
+        guard let aheadPoint = proxy.convert(ahead, to: .local) else { return heading }
+        let dx = aheadPoint.x - point.x
+        let dy = aheadPoint.y - point.y
+        guard hypot(dx, dy) > 0.01 else { return heading }
+        return atan2(dx, -dy) * 180 / .pi
     }
 
     private func drawAccuracyRing(_ context: inout GraphicsContext,
@@ -486,7 +507,7 @@ struct FlightTrackingMapView: View {
                                   coordinate: CLLocationCoordinate2D) {
         let edge = GreatCircle.destination(from: coordinate, bearingDegrees: 90, distanceMetres: metres)
         guard let edgePoint = proxy.convert(edge, to: .local) else { return }
-        let radius = abs(edgePoint.x - point.x)
+        let radius = hypot(edgePoint.x - point.x, edgePoint.y - point.y)
         guard radius > 6, radius < 400 else { return }
         let rect = CGRect(x: point.x - radius, y: point.y - radius,
                           width: radius * 2, height: radius * 2)

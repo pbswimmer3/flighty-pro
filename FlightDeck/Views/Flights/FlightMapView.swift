@@ -23,11 +23,19 @@ struct FlightMapView: View {
             if let origin, let destination {
                 mapContent(origin: origin, destination: destination)
             } else {
-                // Unknown airport (not in bundled DB) — skip the map gracefully.
+                // Neither airport list knows one of the endpoints. Say which,
+                // rather than a bare "unavailable" that reads like an outage.
                 ZStack {
                     Theme.card
-                    Label("Route map unavailable", systemImage: "map")
-                        .foregroundStyle(Theme.textSecondary)
+                    VStack(spacing: 6) {
+                        Label("Route map unavailable", systemImage: "map")
+                            .foregroundStyle(Theme.textSecondary)
+                        Text(missingAirportsNote)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.textTertiary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 24)
                 }
             }
         }
@@ -36,6 +44,12 @@ struct FlightMapView: View {
         .onChange(of: scenePhase) { _, phase in
             phase == .active ? startTracking() : tracker.stop()
         }
+    }
+
+    private var missingAirportsNote: String {
+        let missing = [origin == nil ? flight.originIATA : nil,
+                       destination == nil ? flight.destinationIATA : nil].compactMap { $0 }
+        return "Can't find \(missing.joined(separator: " or ")) in the airport database."
     }
 
     // Note: deliberately no `onDisappear { tracker.stop() }`. Pushing the

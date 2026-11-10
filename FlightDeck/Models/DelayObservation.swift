@@ -77,6 +77,10 @@ struct DelayObservation: Codable, Hashable, Identifiable {
     /// isn't a fact until the aircraft is down.
     init?(observed flight: Flight, source: Source = .flown, at now: Date = .now) {
         guard flight.phase == .cancelled || flight.hasFlown(at: now) else { return nil }
+        // A projection that was never confirmed carries last month's timetable
+        // and no observation at all. Recording it would log a guaranteed
+        // "on time" against this route and drag the forecast toward it.
+        guard !flight.isScheduleProjected else { return nil }
         self.init(airlineCode: flight.airlineCode,
                   flightNumber: flight.flightNumber,
                   originIATA: flight.originIATA,

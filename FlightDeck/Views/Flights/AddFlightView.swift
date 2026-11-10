@@ -2,10 +2,13 @@ import SwiftUI
 
 /// Sheet for adding a flight by designator + date.
 ///
-/// Search is the happy path, but it is not the only path. Live schedule feeds
-/// only reach about a week out, so anything booked further ahead — and
-/// anything the feed simply doesn't carry — falls through to a keyless route
-/// lookup and a prefilled manual entry rather than a dead end.
+/// Search is the happy path for any date. The live feed reliably answers about
+/// a week out; past that the provider asks for the real date anyway and, if
+/// it comes back empty, projects this week's timetable for the same flight
+/// number onto the chosen day (`ScheduleProjection`), confirmed automatically
+/// once the flight is inside the live window. Anything the feed doesn't carry
+/// at all falls through to a keyless route lookup and a prefilled manual entry
+/// rather than a dead end.
 struct AddFlightView: View {
     @EnvironmentObject private var store: FlightStore
     @EnvironmentObject private var settings: SettingsStore
@@ -24,14 +27,12 @@ struct AddFlightView: View {
 
     private var isDemo: Bool { settings.demoMode || settings.aeroDataBoxKey.isEmpty }
 
-    /// How far out the picked date is. Live status feeds don't reach far, and
-    /// saying so before the search beats explaining it after.
-    private var daysAhead: Int {
-        Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0
-    }
+    /// How far out the picked date is. Saying what will happen before the
+    /// search beats explaining it after.
+    private var daysAhead: Int { AeroDataBoxProvider.daysAhead(of: date) }
 
-    private var isBeyondLiveSchedules: Bool {
-        !isDemo && abs(daysAhead) > AeroDataBoxProvider.scheduleHorizonDays
+    private var isBeyondLiveWindow: Bool {
+        !isDemo && abs(daysAhead) > AeroDataBoxProvider.liveWindowDays
     }
 
     var body: some View {
@@ -48,8 +49,10 @@ struct AddFlightView: View {
                 } footer: {
                     if isDemo {
                         Text("Demo Mode is on — lookups return realistic simulated flights. Add an AeroDataBox key in Settings for real data.")
-                    } else if isBeyondLiveSchedules {
-                        Text("That's \(abs(daysAhead)) days \(daysAhead < 0 ? "ago" : "out"). Live status only covers about a week either side of today, so add this one manually below — the route and airline still get filled in for you.")
+                    } else if isBeyondLiveWindow, daysAhead > 0 {
+                        Text("That's \(daysAhead) days out. If the live feed doesn't have that date yet, FlightDeck copies this week's timetable for the same flight and confirms it automatically once it's within \(AeroDataBoxProvider.liveWindowDays) days.")
+                    } else if isBeyondLiveWindow {
+                        Text("That's \(-daysAhead) days ago. How far back lookups reach depends on your AeroDataBox plan — if it isn't found, add it manually below.")
                     }
                 }
 
@@ -63,7 +66,7 @@ struct AddFlightView: View {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                     }
-                    .disabled(flightNumber.count < 3 || isSearching || isBeyondLiveSchedules)
+                    .disabled(flightNumber.count < 3 || isSearching)
 
                     if let errorMessage {
                         Text(errorMessage)
@@ -135,7 +138,7 @@ struct AddFlightView: View {
 
     @ViewBuilder
     private var manualSection: some View {
-        if canAddManually || isBeyondLiveSchedules || !results.isEmpty || !flightNumber.isEmpty {
+        if canAddManually || !results.isEmpty || !flightNumber.isEmpty {
             Section {
                 Button {
                     showManualEntry = true
@@ -164,7 +167,7 @@ struct AddFlightView: View {
                 Text("Enter it yourself")
             } footer: {
                 Text(lookedUpRoute == nil
-                     ? "Works for any flight, any date, anywhere — including flights too far out for live schedules."
+                     ? "Works for any flight, any date, anywhere — including ones the live feed doesn't carry."
                      : "Route and airline come from a free community database keyed on flight number. It's the route this number usually flies, so check it matches your leg — everything is editable.")
             }
         }
@@ -184,9 +187,15 @@ struct AddFlightView: View {
                 Text("\(flight.displayNumber)  \(flight.originIATA) → \(flight.destinationIATA)")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
-                Text("Departs \(Fmt.time(flight.scheduledDeparture, airportIATA: flight.originIATA)) · \(Fmt.dayAndDate(flight.scheduledDeparture))")
+                Text("Departs \(Fmt.time(flight.scheduledDeparture, airportIATA: flight.originIATA)) · \(Fmt.dayAndDate(flight.scheduledDeparture, tz: flight.originAirport?.timeZone))")
                     .font(.footnote)
                     .foregroundStyle(Theme.textSecondary)
+                if let reference = flight.projectedFrom {
+                    Text("Times copied from \(Fmt.dayAndDate(reference, tz: flight.originAirport?.timeZone)) · confirmed \(AeroDataBoxProvider.liveWindowDays) days out")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer()
             Image(systemName: "plus.circle.fill")

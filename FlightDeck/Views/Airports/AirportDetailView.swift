@@ -221,8 +221,14 @@ struct AirportDetailView: View {
             SectionHeader(title: "Airport Facts", systemImage: "info.circle")
             InfoRow(label: "ICAO", value: airport.icao)
             InfoRow(label: "Time zone", value: airport.tz)
-            InfoRow(label: "Min connection (domestic)", value: "\(airport.mctDomestic) min")
-            InfoRow(label: "Min connection (international)", value: "\(airport.mctInternational) min")
+            InfoRow(label: "Min connection (domestic)", value: mctText(airport.mctDomestic))
+            InfoRow(label: "Min connection (international)", value: mctText(airport.mctInternational))
+            if !airport.hasResearchedConnectionTimes {
+                Text("Connection times here are typical defaults, not researched values for this airport.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let terminals = airport.terminals {
                 Divider().overlay(Theme.separator)
                 Text(terminals)
@@ -231,5 +237,9 @@ struct AirportDetailView: View {
             }
         }
         .cardStyle()
+    }
+
+    private func mctText(_ minutes: Int) -> String {
+        airport.hasResearchedConnectionTimes ? "\(minutes) min" : "~\(minutes) min"
     }
 }

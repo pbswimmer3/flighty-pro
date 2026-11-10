@@ -201,7 +201,7 @@ The app is designed to be useful **with zero configuration** and to use
 | Airport delay programs (US) | FAA NAS Status — `nasstatus.faa.gov` | No |
 | Weather (METAR, worldwide) | NOAA/NWS — `aviationweather.gov` | No |
 | Live aircraft positions | `api.adsb.lol` (community ADS-B) | No |
-| Airport database | Bundled `airports.json` (curated, offline) | No |
+| Airport database | Bundled `airports.json` (curated) + `airports-world.json` (~7,900, mwgg/Airports, MIT), offline | No |
 | Flight schedules & status | **Demo Mode** (default) or **AeroDataBox** | AeroDataBox: free RapidAPI key |
 
 **Demo Mode** (default: on) generates a realistic sample itinerary *relative
@@ -241,7 +241,7 @@ FlightDeck/
 │   ├── FlightIntel.swift          Delay-signal heuristics
 │   ├── ArrivalForecaster.swift    Delay probability + arrival band
 │   ├── DelayHistoryBackfill.swift Provider scan / seeded demo history
-│   └── AirportDatabase.swift      Bundled airports.json loader
+│   └── AirportDatabase.swift      Curated + world airport lookup
 ├── Stores/
 │   ├── FlightStore.swift          Source of truth + persistence + archival
 │   ├── DelayHistoryStore.swift    Rolling 60-day punctuality record
@@ -253,6 +253,7 @@ FlightDeck/
 ├── Views/                         Flights / Passport / Airports / Connection /
 │                                  Settings / shared components
 └── Resources/airports.json        110 airports: coords, IANA tz, MCTs
+    Resources/airports-world.json  ~7,900 fallback airports: coords, IANA tz
 ```
 
 ### Key decisions (and why)

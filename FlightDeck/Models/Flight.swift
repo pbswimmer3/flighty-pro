@@ -85,9 +85,18 @@ struct Flight: Identifiable, Codable, Hashable {
     var isLiveData: Bool = false
     var lastUpdated: Date = .now
 
+    /// Non-nil when these times weren't looked up for this date at all: they
+    /// were carried over from the same flight number on a nearer day (this is
+    /// that day's departure), because the live feed doesn't reach this far
+    /// out. See `ScheduleProjection`. Any successful refresh replaces the whole
+    /// flight with a fresh one from the provider, which clears it.
+    var projectedFrom: Date?
+
     // MARK: - Derived
 
     var displayNumber: String { "\(airlineCode) \(flightNumber)" }
+
+    var isScheduleProjected: Bool { projectedFrom != nil }
 
     /// Best-known departure/arrival (actual > estimated > scheduled).
     var bestDeparture: Date { actualDeparture ?? estimatedDeparture ?? scheduledDeparture }

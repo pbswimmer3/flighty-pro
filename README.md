@@ -151,7 +151,7 @@ With a free account the app expires after 7 days — press ⌘R again to reinsta
 2. Paste the key into **Settings → Live flight lookups**.
 3. Switch **Demo Mode** off and add a flight by number, e.g. `DL 482`.
 
-Lookups reach 7 days either side of today. Anything further out can be added by hand.
+Flights can be added any distance ahead. The free plan's live status reaches about a week out, so a flight further away starts from this week's timetable for the same flight number, is marked **Projected**, and swaps to the real schedule on its own once it's within a week. Anything the feed doesn't carry at all can be added by hand.
 
 </details>
 
@@ -178,7 +178,7 @@ flowchart LR
 | Weather, worldwide | [NOAA Aviation Weather](https://aviationweather.gov) | — |
 | Live aircraft positions | [adsb.lol](https://adsb.lol) | — |
 | Callsign → route | [adsbdb](https://www.adsbdb.com) | — |
-| Airports | Bundled `airports.json` | — |
+| Airports | Bundled: curated `airports.json` + ~7,900 worldwide from [mwgg/Airports](https://github.com/mwgg/Airports) (MIT) | — |
 | Flight schedules & status | Demo Mode, or [AeroDataBox](https://aerodatabox.com) | 🔑 |
 
 **Demo Mode** builds a sample trip around the current time: one flight in the
@@ -198,7 +198,7 @@ FlightDeck/
 ├── Stores/      App state: flights, settings, delay history, live traffic
 ├── Views/       Flights · Passport · Airports · Connection · Settings
 ├── Utilities/   Great-circle math, dead reckoning, formatters
-└── Resources/   airports.json
+└── Resources/   airports.json (curated), airports-world.json (fallback)
 ```
 
 A few choices worth knowing:

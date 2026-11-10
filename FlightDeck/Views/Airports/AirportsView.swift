@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Airports tab: favorites + searchable list of the bundled airport database.
+/// Airports tab: favorites, the curated airports, and search across every
+/// airport the app can place (see `AirportDatabase` for the two layers).
 struct AirportsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @State private var query = ""
@@ -26,7 +27,7 @@ struct AirportsView: View {
                             }
                             .buttonStyle(.plain)
                         }
-                        SectionHeader(title: "All Airports", systemImage: "globe.americas.fill")
+                        SectionHeader(title: "Featured Airports", systemImage: "globe.americas.fill")
                             .padding(.top, 10)
                     }
                     ForEach(results) { airport in
@@ -42,7 +43,7 @@ struct AirportsView: View {
             }
             .background(Theme.background)
             .navigationTitle("Airports")
-            .searchable(text: $query, prompt: "Search by code, city, or name")
+            .searchable(text: $query, prompt: "Search any airport by code, city, or name")
             .navigationDestination(for: Airport.self) { airport in
                 AirportDetailView(airport: airport)
             }

@@ -38,6 +38,26 @@ struct FlightChange: Identifiable, Equatable {
                 body: "The flight is no longer heading to \(new.destinationIATA)."))
         }
 
+        // MARK: Projected schedule confirmed
+        //
+        // A flight added months out carried a timetable copied from a nearer
+        // week. When the real one arrives, delays are measured against the
+        // *new* scheduled time, so nothing below would notice the airline had
+        // moved the flight — this is the only place that can say so.
+
+        if old.isScheduleProjected, !new.isScheduleProjected {
+            let shift = Int(new.scheduledDeparture.timeIntervalSince(old.scheduledDeparture) / 60)
+            if abs(shift) >= materialMinutes {
+                let local = Fmt.time(new.scheduledDeparture, airportIATA: new.originIATA)
+                let hours = abs(shift) / 60, minutes = abs(shift) % 60
+                let span = hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
+                changes.append(FlightChange(
+                    alert: .delay,
+                    title: "\(number) schedule confirmed — times changed",
+                    body: "Now departs \(new.originIATA) at \(local), \(span) \(shift > 0 ? "later" : "earlier") than the timetable it was added with."))
+            }
+        }
+
         // MARK: Times
         //
         // Reported against the *scheduled* time, not the previous estimate, so

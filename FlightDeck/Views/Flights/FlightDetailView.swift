@@ -43,6 +43,7 @@ struct FlightDetailView: View {
             VStack(spacing: 14) {
                 mapHeader(flight)
                 FlightStageBar(flight: flight)
+                projectionNotice(flight)
                 forecastCard(flight)
                 intelCard
                 timelineCard(flight)
@@ -102,11 +103,44 @@ struct FlightDetailView: View {
         .buttonStyle(.plain)
     }
 
+    /// Names the airport the tracking map will actually open on — the same
+    /// `parkedAirport` the map itself uses — so the button can't promise SNA
+    /// and deliver SFO.
     private func trackingPrompt(_ flight: Flight) -> String {
         if tracker.track != nil { return "Track live · traffic around you" }
         if flight.effectivePhase.isAirborne { return "Track this flight" }
-        if flight.effectivePhase.isComplete { return "See traffic at \(flight.destinationIATA)" }
-        return "See traffic at \(flight.originIATA)"
+        guard let parked = FlightTrackingMapView.parkedAirport(for: flight) else { return "Open live map" }
+        return "See traffic at \(parked.iata)"
+    }
+
+    // MARK: Projected schedule
+
+    /// Times copied from another week must never pass for a confirmed
+    /// schedule — same principle as the simulated-history warning on the
+    /// forecast card.
+    @ViewBuilder
+    private func projectionNotice(_ flight: Flight) -> some View {
+        if let reference = flight.projectedFrom {
+            let zone = flight.originAirport?.timeZone
+            let confirms = flight.scheduledDeparture
+                .addingTimeInterval(-Double(AeroDataBoxProvider.liveWindowDays) * 86_400)
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Theme.orange)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Projected schedule")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    Text("The live feed doesn't reach this date yet, so these are \(flight.displayNumber)'s times from \(Fmt.dayAndDate(reference, tz: zone)). The real schedule replaces them the first time the app is open from about \(Fmt.dayAndDate(confirms, tz: zone)), with an alert if the times moved.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardStyle()
+        }
     }
 
     // MARK: Arrival forecast

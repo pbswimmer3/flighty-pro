@@ -168,7 +168,7 @@ struct LiveTrafficMapView: View {
         // actually have, which is where that aircraft is going.
         if let anchor = selectedAnchor, let track = selectedTrack {
             let route = routes.route(for: track.report.callsign)
-            let subtitle = route?.arrow
+            let subtitle = route.map { RouteLabel(route: $0, report: track.report).headline }
                 ?? (routes.isLoading(track.report.callsign) ? "Looking up route…" : nil)
             AircraftGlyph.drawCallout(&context,
                                       at: CGPoint(x: anchor.point.x, y: anchor.point.y + anchor.size + 9),
@@ -231,9 +231,13 @@ struct LiveTrafficMapView: View {
                         }
                     }
                     if let route = routes.route(for: report.callsign) {
-                        Text(route.arrow)
+                        let label = RouteLabel(route: route, report: report)
+                        Text(label.headline)
                             .font(.system(size: 13, weight: .heavy, design: .rounded))
                             .foregroundStyle(Theme.accent)
+                        Text(label.note)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(label.contradictsSchedule ? Theme.orange : Theme.textTertiary)
                     } else if routes.isLoading(report.callsign) {
                         Text("Looking up route…")
                             .font(.system(size: 11, weight: .medium, design: .rounded))

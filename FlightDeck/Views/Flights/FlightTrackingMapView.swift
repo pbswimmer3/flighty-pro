@@ -434,11 +434,12 @@ struct FlightTrackingMapView: View {
         selectedHex != nil && selectedHex == tracker.track?.report.hex
     }
 
-    /// Callsign on top, route underneath — "BAW117" / "LHR → JFK".
+    /// Callsign on top, route underneath — "BAW117" / "LHR → JFK", or
+    /// "Arriving SFO" when the schedule is visibly the other leg.
     private func calloutLines(for track: TrafficStore.Track) -> (String, String?) {
         let name = track.report.label
         if let route = routes.route(for: track.report.callsign) {
-            return (route.displayNumber ?? name, route.arrow)
+            return (route.displayNumber ?? name, RouteLabel(route: route, report: track.report).headline)
         }
         if routes.isLoading(track.report.callsign) { return (name, "Looking up route…") }
         return (name, nil)
@@ -520,14 +521,19 @@ struct FlightTrackingMapView: View {
         // Prefetching every contact in view would be dozens of requests a
         // minute against a free community service for information nobody
         // looked at.
-        if let hex = newSelection,
+        if let hex = newSelection, hex != tracker.track?.report.hex,
            let callsign = traffic.tracks.first(where: { $0.report.hex == hex })?.report.callsign {
             routes.lookup(callsign)
         }
     }
 
+    /// The tapped *other* aircraft. Our own aircraft is in `traffic.tracks`
+    /// too, but it's described by the user's flight (callout and
+    /// `ownAircraftCard`), never by a callsign lookup: the route table holds
+    /// one leg per flight number, so it can name the other leg of the user's
+    /// own rotation — "QXE2187 SFO → LAX" on a plane landing at SFO.
     private var selectedTrack: TrafficStore.Track? {
-        guard let selectedHex else { return nil }
+        guard let selectedHex, !isOwnSelected else { return nil }
         return traffic.tracks.first { $0.report.hex == selectedHex }
     }
 
@@ -680,20 +686,27 @@ struct FlightTrackingMapView: View {
     /// Where that aircraft is headed. Held to the same standard as the
     /// positions on this map: it comes from a community route table keyed on
     /// callsign, so it says what that flight number usually flies — hence
-    /// "scheduled route", not a claim about this airframe today.
+    /// "scheduled route", not a claim about this airframe today. When the
+    /// aircraft is visibly flying the other leg, `RouteLabel` leads with that.
     @ViewBuilder
     private func routeLine(for report: TrafficReport) -> some View {
         if let route = routes.route(for: report.callsign) {
-            HStack(spacing: 6) {
-                Text(route.arrow)
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Theme.accent)
-                if let airline = route.airlineName {
-                    Text(airline)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(Theme.textTertiary)
-                        .lineLimit(1)
+            let label = RouteLabel(route: route, report: report)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(label.headline)
+                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.accent)
+                    if let airline = route.airlineName {
+                        Text(airline)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(Theme.textTertiary)
+                            .lineLimit(1)
+                    }
                 }
+                Text(label.note)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(label.contradictsSchedule ? Theme.orange : Theme.textTertiary)
             }
         } else if routes.isLoading(report.callsign) {
             Text("Looking up route…")

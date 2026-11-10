@@ -155,6 +155,15 @@ Flights can be added any distance ahead. The free plan's live status reaches abo
 
 </details>
 
+<details>
+<summary><b>TestFlight feedback fixes itself</b> (optional)</summary>
+
+<br />
+
+Submit feedback from TestFlight and, a couple of minutes later, there's a GitHub issue with your report and a pull request from Claude that fixes it, compile-checked by Codemagic. A Cloudflare Worker relays App Store Connect's webhook to GitHub Actions. One-time setup, written so a browser agent can do it: [docs/feedback-autofix.md](docs/feedback-autofix.md).
+
+</details>
+
 ---
 
 ## Where the data comes from
@@ -213,6 +222,7 @@ More detail:
 [live traffic design](docs/live-traffic-plan.md) ·
 [Flighty feature research](docs/flighty-research.md) ·
 [simulator test plan](docs/simulator-test-plan.md) ·
+[feedback auto-fix](docs/feedback-autofix.md) ·
 [build plan](plan.md)
 
 ---

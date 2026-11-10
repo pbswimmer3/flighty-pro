@@ -1,0 +1,50 @@
+# One-time setup, and the place to look when feedback doesn't trigger a run.
+#
+#   register    Points App Store Connect's TestFlight-feedback webhook at the
+#               relay (creating or updating it), sends a test ping, and shows
+#               whether it arrived.
+#   deliveries  Lists the webhook's last ten deliveries and their results.
+#
+# See docs/feedback-autofix.md.
+name: TestFlight webhook setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [register, deliveries]
+        default: register
+      relay_url:
+        description: "register only: the relay's URL, e.g. https://flightdeck-feedback-relay.NAME.workers.dev"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  webhook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install "pyjwt[crypto]>=2.8,<3"
+      - env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          APPLE_WEBHOOK_SECRET: ${{ secrets.APPLE_WEBHOOK_SECRET }}
+          ACTION: ${{ inputs.action }}
+          RELAY_URL: ${{ inputs.relay_url }}
+        run: |
+          if [ "$ACTION" = "register" ]; then
+            python3 scripts/testflight_feedback.py register-webhook --url "$RELAY_URL"
+          else
+            python3 scripts/testflight_feedback.py deliveries
+          fi

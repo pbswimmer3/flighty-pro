@@ -1,0 +1,16 @@
+# Cloudflare Worker that turns App Store Connect's TestFlight-feedback webhook
+# into a GitHub workflow dispatch. See docs/feedback-autofix.md.
+name = "flightdeck-feedback-relay"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[vars]
+GITHUB_REPO = "pbswimmer3/flighty-pro"
+WORKFLOW_FILE = "testflight-feedback.yml"
+WORKFLOW_REF = "main"
+
+# Secrets, set in the Cloudflare dashboard (Settings → Variables and Secrets)
+# or with `wrangler secret put`:
+#   APPLE_WEBHOOK_SECRET
+#   GITHUB_TOKEN

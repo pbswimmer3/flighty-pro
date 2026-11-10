@@ -49,6 +49,18 @@ workflows:
     max_build_duration: 20
     environment:
       xcode: latest
+    # Every pull request into main, including the ones the TestFlight feedback
+    # workflow opens: that is the only place a Claude-written fix gets
+    # compiled before it can be merged. Needs the GitHub webhook to send
+    # "Pull requests" events.
+    triggering:
+      events:
+        - pull_request
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: false # match the PR's target branch, not its source
+      cancel_previous_builds: true
     scripts:
       - name: Build for device without signing
         script: |

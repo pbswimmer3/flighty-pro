@@ -7,32 +7,87 @@ struct AeroDataBoxProvider: FlightDataProvider {
 
     private static let host = "aerodatabox.p.rapidapi.com"
 
-    /// How far the flight-status endpoint reaches. Higher tiers stretch this
-    /// to 14 or 30 days; a week is what the free and Basic plans give, and
-    /// over-promising here just moves the failure later.
-    static let scheduleHorizonDays = 7
+    /// How far ahead the flight-status endpoint reliably answers on the free
+    /// and Basic plans — and therefore how far ahead a flight can be
+    /// *confirmed*. It is not a limit on adding one: past this, a search still
+    /// asks for the real date first (higher plans and published schedules can
+    /// reach further), and only if that comes back empty does it fall back to
+    /// projecting this week's timetable. See `ScheduleProjection`.
+    ///
+    /// This used to be a hard wall checked before any request, which made
+    /// "only flights within a week" a property of the app rather than of the
+    /// data — the feed was never even asked.
+    static let liveWindowDays = 7
+
+    /// Whole calendar days from today to `date` (negative in the past).
+    static func daysAhead(of date: Date, now: Date = .now, calendar: Calendar = .current) -> Int {
+        calendar.dateComponents([.day],
+                                from: calendar.startOfDay(for: now),
+                                to: calendar.startOfDay(for: date)).day ?? 0
+    }
+
+    /// True for a future date the live feed may not reach — the only case
+    /// where projecting from this week is worth trying.
+    static func isBeyondLiveWindow(_ date: Date, now: Date = .now) -> Bool {
+        daysAhead(of: date, now: now) > liveWindowDays
+    }
 
     func searchFlights(number: String, date: Date) async throws -> [Flight] {
         guard !apiKey.isEmpty else { throw FlightDataError.missingAPIKey }
         guard let designator = DemoFlightProvider.parseDesignator(number) else {
             throw FlightDataError.notFound
         }
+        // The date picker hands over an instant; the service wants the local
+        // calendar day the user picked, which is the day in *their* calendar.
+        let day = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return try await search(designator, on: day, projectIfBeyondWindow: true)
+    }
 
-        // The endpoint is a *status* lookup, not a timetable: it covers roughly
-        // a week either side of today on the Basic and Pro plans. Asking for a
-        // date next February returns a 2xx with a body that isn't a flight
-        // list, which is exactly how this used to surface as an unreadable
-        // "unexpected response". Failing early says something useful instead,
-        // and the caller offers manual entry.
-        let daysOut = Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 0
-        guard abs(daysOut) <= Self.scheduleHorizonDays else {
-            throw FlightDataError.dateOutOfRange
+    /// Ask for the real day; if that fails on a day past the live window, try
+    /// projecting from the same weekday this week.
+    private func search(_ designator: (code: String, number: String),
+                        on day: DateComponents,
+                        projectIfBeyondWindow: Bool) async throws -> [Flight] {
+        do {
+            return try await fetch(designator, on: day)
+        } catch let error as FlightDataError {
+            guard projectIfBeyondWindow,
+                  error.isWorthAddingManually,
+                  let target = Calendar.current.date(from: day),
+                  Self.isBeyondLiveWindow(target)
+            else { throw error }
+
+            if let projected = await project(designator, onto: day) { return projected }
+            // Nothing this week either. A bare "not found" or an unreadable
+            // body would hide the real reason, which is the date.
+            switch error {
+            case .notFound, .decoding: throw FlightDataError.dateOutOfRange
+            default: throw error
+            }
         }
+    }
 
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        df.timeZone = .current
-        let dateString = df.string(from: date)
+    /// Same weekday this coming week, then last week. Sequential on purpose:
+    /// the first hit ends it, and free tiers rate-limit bursts hard.
+    private func project(_ designator: (code: String, number: String),
+                         onto target: DateComponents) async -> [Flight]? {
+        for reference in ScheduleProjection.referenceDays(for: target) {
+            guard let flights = try? await fetch(designator, on: reference) else { continue }
+            let projected = flights.compactMap {
+                ScheduleProjection.project($0, from: reference, onto: target)
+            }
+            if !projected.isEmpty { return projected }
+        }
+        return nil
+    }
+
+    /// One request for one local day.
+    private func fetch(_ designator: (code: String, number: String),
+                       on day: DateComponents) async throws -> [Flight] {
+        guard let year = day.year, let month = day.month, let dayOfMonth = day.day else {
+            throw FlightDataError.notFound
+        }
+        let dateString = String(format: "%04d-%02d-%02d", year, month, dayOfMonth)
 
         let numberPath = "\(designator.code)\(designator.number)"
         var components = URLComponents()
@@ -147,14 +202,27 @@ struct AeroDataBoxProvider: FlightDataProvider {
     }
 
     func refresh(flight: Flight) async throws -> Flight {
-        let results = try await searchFlights(
-            number: "\(flight.airlineCode)\(flight.flightNumber)",
-            date: flight.scheduledDeparture)
+        guard !apiKey.isEmpty else { throw FlightDataError.missingAPIKey }
+        guard let designator = DemoFlightProvider.parseDesignator(
+            "\(flight.airlineCode)\(flight.flightNumber)") else {
+            throw FlightDataError.notFound
+        }
+        // The departure's own local day, not the phone's: a 7:59 PM SNA
+        // departure is the 10th in California even if the phone is in London.
+        let day = flight.originCalendar.dateComponents([.year, .month, .day],
+                                                       from: flight.scheduledDeparture)
+        // A flight that's already a projection may be re-projected (that picks
+        // up timetable changes); a real one must never be silently swapped
+        // for a guess.
+        let results = try await search(designator, on: day,
+                                       projectIfBeyondWindow: flight.isScheduleProjected)
         // Match on route since a designator can fly multiple segments per day.
         var updated = results.first {
             $0.originIATA == flight.originIATA && $0.destinationIATA == flight.destinationIATA
         } ?? results[0]
         updated.id = flight.id   // preserve identity in the store
+        // User-entered: no provider knows it, and a refresh used to wipe it.
+        updated.seat = flight.seat
         return updated
     }
 

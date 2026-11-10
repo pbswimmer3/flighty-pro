@@ -1,7 +1,9 @@
 import Foundation
 import CoreLocation
 
-/// An airport from the bundled database (Resources/airports.json).
+/// An airport from the bundled database — either the curated list
+/// (Resources/airports.json) or the world fallback behind it
+/// (Resources/airports-world.json). See `AirportDatabase`.
 struct Airport: Identifiable, Codable, Hashable {
     var iata: String                // "SFO"
     var icao: String                // "KSFO"
@@ -19,6 +21,22 @@ struct Airport: Identifiable, Codable, Hashable {
 
     /// Short free-text terminal overview shown on the airport page.
     var terminals: String?
+
+    /// `true` for airports that came from the world fallback list, which only
+    /// knows where an airport is and what time it is there. Their connection
+    /// times are the rule-of-thumb defaults below, not researched values, and
+    /// the UI says so. Optional so the curated JSON decodes without the key.
+    var isFromWorldList: Bool?
+
+    /// What a connection at an airport we know nothing else about is assumed
+    /// to need. Matches the fallback `Connection` already used for an airport
+    /// missing entirely, so the risk call doesn't change depending on which
+    /// list an airport happened to come from.
+    static let typicalMCTDomestic = 45
+    static let typicalMCTInternational = 90
+
+    /// Whether the minimum connection times are researched rather than defaults.
+    var hasResearchedConnectionTimes: Bool { isFromWorldList != true }
 
     var id: String { iata }
 

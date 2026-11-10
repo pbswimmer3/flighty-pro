@@ -60,7 +60,7 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Flights tracked", value: "\(store.flights.count)")
                     LabeledContent("Flights flown", value: "\(store.passport().flightCount)")
-                    LabeledContent("Airport database", value: "\(AirportDatabase.shared.airports.count) airports")
+                    LabeledContent("Airport database", value: "\(AirportDatabase.shared.resolvableCount.formatted()) airports")
                     LabeledContent("Version", value: "1.1")
                 } header: {
                     Text("About")

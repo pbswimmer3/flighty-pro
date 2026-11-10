@@ -132,6 +132,9 @@ struct FlightCard: View {
         case .taxiingIn, .atGate, .arrived: return ("Arrived", Theme.green)
         case .boarding, .gateClosing: return (stage.label, Theme.purple)
         case .scheduled, .checkInOpen, .boardingSoon:
+            // "On Time" about a timetable copied from another week would be a
+            // claim nobody has made yet.
+            if flight.isScheduleProjected { return ("Projected", Theme.textSecondary) }
             return flight.isDelayed
                 ? ("Delayed \(flight.departureDelayMinutes)m", Theme.orange)
                 : ("On Time", Theme.green)

@@ -18,6 +18,15 @@ final class FlightStore: ObservableObject {
     private var refreshTimer: Timer?
     private var clockTimer: Timer?
 
+    /// When each projected flight last asked the provider for its real
+    /// schedule. In memory only: a relaunch is a fine reason to try again.
+    private var lastConfirmationAttempt: [UUID: Date] = [:]
+
+    /// The refresh timer fires every 90 seconds; a flight number that genuinely
+    /// isn't in the feed yet would otherwise spend the free tier's monthly
+    /// quota in a day.
+    private static let confirmationRetryInterval: TimeInterval = 6 * 3600
+
     init(settings: SettingsStore, history: DelayHistoryStore) {
         self.settings = settings
         self.history = history
@@ -27,6 +36,11 @@ final class FlightStore: ObservableObject {
             save()
         }
         recordCompletedFlights()
+        Task { @MainActor [weak self] in
+            guard let self, await self.confirmProjectedFlights() else { return }
+            self.sort()
+            self.save()
+        }
 
         // Re-evaluate live flights every 90 seconds while the app is open.
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 90, repeats: true) { [weak self] _ in
@@ -127,8 +141,47 @@ final class FlightStore: ObservableObject {
                 await announceChanges(from: previous, to: updated)
             }
         }
+        if await confirmProjectedFlights() { changed = true }
         lastRefresh = .now
         if changed { sort(); save() }
+    }
+
+    /// Swap projected schedules for real ones once the live feed can answer.
+    ///
+    /// A flight added months out carries a timetable copied from a nearer week
+    /// (`ScheduleProjection`). The active-window refresh above only touches
+    /// flights within hours of departure, which would leave a projection
+    /// standing until the day of travel — so this pass asks as soon as the
+    /// flight is inside the provider's live window, and keeps asking, slowly,
+    /// until the answer is a real flight. Returns whether anything changed.
+    private func confirmProjectedFlights(now: Date = .now) async -> Bool {
+        let due = flights.filter { flight in
+            guard flight.isScheduleProjected, !flight.isActive,
+                  !AeroDataBoxProvider.isBeyondLiveWindow(flight.scheduledDeparture, now: now)
+            else { return false }
+            guard let last = lastConfirmationAttempt[flight.id] else { return true }
+            return now.timeIntervalSince(last) >= Self.confirmationRetryInterval
+        }
+        guard !due.isEmpty else { return false }
+
+        let provider = settings.provider
+        var changed = false
+        for flight in due {
+            lastConfirmationAttempt[flight.id] = now
+            // Inside the window the provider never projects, so a result is
+            // either the real flight or an error — but check anyway rather
+            // than trade one guess for another.
+            guard let updated = try? await provider.refresh(flight: flight),
+                  !updated.isScheduleProjected,
+                  // The user may have deleted it while the request was out.
+                  let idx = flights.firstIndex(where: { $0.id == flight.id })
+            else { continue }
+            let previous = flights[idx]
+            flights[idx] = updated
+            changed = true
+            await announceChanges(from: previous, to: updated)
+        }
+        return changed
     }
 
     func refresh(_ flight: Flight) async {

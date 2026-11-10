@@ -396,15 +396,36 @@ prefilled; the footer states the computed flight time. Tap Add — **both** shee
 close and the flight is in the list. If only the inner sheet closes, the
 `onDismiss` handoff regressed.
 
-**6.9 — Unknown airports are declared.** With ROB/FNA prefilled (neither is in
-the bundled database) the Route footer must say so, and say the flight won't
-count toward Passport distance. Silently using the phone's timezone is the
+**6.9 — Unknown airports are declared.** ROB/FNA now resolve through the world
+airport list, so the Route footer must show their real time zones and count
+the leg toward Passport distance. Then change the destination to a code that
+doesn't exist (`QQQ`): the footer must say it's unknown and that the flight
+won't count toward distance. Silently using the phone's timezone is the
 failure.
 
-**6.10 — Date guard (needs a key).** Turn Demo Mode off, paste a key, pick a
-date 6 months out. The Search button disables and the footer explains live
-schedules only cover about a week — with manual entry offered. Searching an
-out-of-range date must never produce "unexpected response".
+**6.10 — Far-out flights (needs a key).** Turn Demo Mode off, paste a key, pick
+a date 4 months out and search a flight that operates daily (e.g. `AS 2187`).
+Search stays enabled and the footer explains what happens past a week. Either
+the real schedule comes back, or a result carries the orange "Times copied
+from …" line. Add it: the card's pill says **Projected** (never "On Time"),
+and the flight page shows the Projected schedule card with the date it will
+confirm from. Searching any date must never produce "unexpected response". A
+nonsense number 4 months out must end in the "didn't turn up in this week's
+schedule" message with manual entry offered.
+
+**6.10b — Projection confirms itself.** Edit `flights.json` (per 2.2) to move a
+projected flight's `scheduledDeparture` to 3 days from now, keep
+`projectedFrom`, and relaunch. Within a few seconds the Projected card
+disappears and the pill becomes a normal status. If the timetable moved by
+10 minutes or more there's a "schedule confirmed — times changed" alert.
+
+**6.10c — Airports outside the curated list.** Add a flight out of SNA (or any
+airport not on the Airports tab's featured list) that hasn't departed. The
+route map draws, the button reads "See traffic at SNA", and the tracking map
+opens on SNA with the caption "Not airborne yet — showing traffic around SNA".
+A caption naming one airport over a map of another is the failure. Searching
+"John Wayne" on the Airports tab finds it, and its detail page marks the
+connection times as typical defaults.
 
 ### 6c — Stages, countdowns and alerts
 

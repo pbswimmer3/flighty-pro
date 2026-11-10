@@ -91,8 +91,7 @@ struct FlightTrackingMapView: View {
         _cameraDistance = State(initialValue: initialScope.cameraDistance)
 
         let anchor = tracker.track?.report.coordinate
-            ?? AirportDatabase.shared.airport(iata: flight.originIATA)?.coordinate
-            ?? AirportDatabase.shared.airport(iata: flight.destinationIATA)?.coordinate
+            ?? Self.parkedAirport(for: flight)?.coordinate
             ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
         _queryCenter = State(initialValue: anchor)
         _camera = State(initialValue: .camera(MapCamera(centerCoordinate: anchor,
@@ -105,6 +104,24 @@ struct FlightTrackingMapView: View {
 
     private var origin: Airport? { AirportDatabase.shared.airport(iata: flight.originIATA) }
     private var destination: Airport? { AirportDatabase.shared.airport(iata: flight.destinationIATA) }
+
+    /// The airport the map sits on when there's no aircraft position to follow:
+    /// the destination once the flight is down, the origin otherwise, and the
+    /// other end only if the one we want can't be placed.
+    ///
+    /// This is the single answer to "which field is on screen", shared by the
+    /// camera, the traffic search, the caption and the flight page's button.
+    /// They used to work it out separately, and when SNA was missing from the
+    /// airport database the camera fell through to SFO while the caption still
+    /// read "showing traffic around SNA".
+    static func parkedAirport(for flight: Flight) -> Airport? {
+        let db = AirportDatabase.shared
+        let origin = db.airport(iata: flight.originIATA)
+        let destination = db.airport(iata: flight.destinationIATA)
+        return flight.effectivePhase.isComplete ? (destination ?? origin) : (origin ?? destination)
+    }
+
+    private var parkedAirport: Airport? { Self.parkedAirport(for: flight) }
 
     /// Where the user's own aircraft is, and how much we trust it.
     private struct OwnPosition {
@@ -161,9 +178,14 @@ struct FlightTrackingMapView: View {
     /// landing it's the destination.
     private func anchorCoordinate(at now: Date = .now) -> CLLocationCoordinate2D {
         if let own = ownPosition(at: now) { return own.coordinate }
-        if flight.effectivePhase.isComplete, let destination { return destination.coordinate }
-        if let origin { return origin.coordinate }
-        return destination?.coordinate ?? queryCenter
+        return parkedAirport?.coordinate ?? queryCenter
+    }
+
+    /// False only when there's no live fix and neither airport can be placed.
+    /// Then there is nothing honest to centre on, and polling traffic around
+    /// 0°N 0°E would caption the Gulf of Guinea as if it were the user's field.
+    private var canAnchor: Bool {
+        tracker.track != nil || parkedAirport != nil
     }
 
     // MARK: - Body
@@ -312,6 +334,7 @@ struct FlightTrackingMapView: View {
     // MARK: - Polling
 
     private func startPolling() {
+        guard canAnchor else { traffic.stop(); return }
         traffic.start(near: queryCenter, radiusNM: scope.radiusNM, interval: scope.pollInterval)
     }
 
@@ -721,10 +744,7 @@ struct FlightTrackingMapView: View {
     }
 
     private var ownSummary: String {
-        guard let own = ownPosition(at: .now) else {
-            if flight.effectivePhase.isComplete { return "Arrived — showing \(flight.destinationIATA)" }
-            return "Not airborne yet — showing traffic around \(flight.originIATA)"
-        }
+        guard let own = ownPosition(at: .now) else { return parkedSummary }
         var parts: [String] = []
         if let track = tracker.track {
             if track.report.onGround {
@@ -739,6 +759,21 @@ struct FlightTrackingMapView: View {
         }
         if own.isStale { parts.append("signal lost") }
         return parts.joined(separator: " · ")
+    }
+
+    /// What the map is showing when it isn't following the aircraft. Names the
+    /// airport actually on screen — `parkedAirport` — never the one we wished
+    /// we could show.
+    private var parkedSummary: String {
+        let phase = flight.effectivePhase
+        guard let parked = parkedAirport else {
+            return "Can't place \(flight.originIATA) or \(flight.destinationIATA) on the map"
+        }
+        let showing = "showing traffic around \(parked.iata)"
+        if phase.isAirborne { return "No ADS-B contact yet — \(showing)" }
+        let wanted = (phase.isComplete ? flight.destinationIATA : flight.originIATA).uppercased()
+        if parked.iata != wanted { return "Can't place \(wanted) on the map — \(showing) instead" }
+        return phase.isComplete ? "Arrived — \(showing)" : "Not airborne yet — \(showing)"
     }
 
     private var sourceLabel: String {

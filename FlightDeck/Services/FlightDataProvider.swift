@@ -13,7 +13,9 @@ enum FlightDataError: LocalizedError {
     /// "date is out of range for your subscription" is far more useful than
     /// anything this app could infer.
     case service(String)
-    /// The requested date is beyond what live schedule feeds publish.
+    /// The requested date is beyond what the live feed answers for, and the
+    /// flight number didn't turn up this week either, so there was no
+    /// timetable to project from.
     case dateOutOfRange
 
     var errorDescription: String? {
@@ -32,7 +34,7 @@ enum FlightDataError: LocalizedError {
         case .service(let message):
             return message
         case .dateOutOfRange:
-            return "Live schedules don't reach that date. AeroDataBox's Basic plan covers about a week either side of today."
+            return "The live feed doesn't have that date yet, and this flight number didn't turn up in this week's schedule to copy from. Check the number, or add it manually below."
         }
     }
 

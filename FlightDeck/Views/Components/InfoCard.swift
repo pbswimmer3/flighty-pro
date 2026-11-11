@@ -10,22 +10,34 @@ struct InfoRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .scaledFont(14, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
             HStack(spacing: 6) {
                 if let old = strikethroughValue {
                     Text(old)
                         .strikethrough()
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .scaledFont(14, weight: .medium)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textTertiary)
                 }
                 Text(value)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .scaledFont(15, weight: .bold)
+                    .monospacedDigit()
                     .foregroundStyle(valueColor)
             }
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    /// A strikethrough means nothing to VoiceOver, so say what it means.
+    private var accessibilityText: String {
+        if let old = strikethroughValue {
+            return "\(label): \(value), originally \(old)"
+        }
+        return "\(label): \(value)"
     }
 }
 
@@ -38,16 +50,19 @@ struct StatBlock: View {
     var body: some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                .scaledFont(22, weight: .heavy)
+                .monospacedDigit()
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(caption.uppercased())
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .scaledFont(11, weight: .bold)
                 .kerning(0.8)
                 .foregroundStyle(Theme.textTertiary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(caption): \(value == "—" ? "not posted" : value)")
     }
 }
 
@@ -69,9 +84,11 @@ struct AirlineBadge: View {
         ZStack {
             Circle().fill(color.opacity(0.22))
             Text(code)
-                .font(.system(size: size * 0.38, weight: .heavy, design: .rounded))
+                .scaledFont(max(11, size * 0.38), weight: .heavy)
                 .foregroundStyle(color)
         }
         .frame(width: size, height: size)
+        // The airline name is always printed next to the badge.
+        .accessibilityHidden(true)
     }
 }

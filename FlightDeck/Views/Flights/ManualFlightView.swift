@@ -47,6 +47,8 @@ struct ManualFlightView: View {
                 timesSection
                 groundSection
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle("Add Manually")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -70,13 +72,13 @@ struct ManualFlightView: View {
         Section {
             HStack {
                 TextField("BA", text: $airlineCode)
-                    .font(Theme.monoFont(17))
+                    .scaledFont(17, weight: .semibold, design: .monospaced)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
-                    .frame(width: 60)
+                    .frame(minWidth: 60)
                 Divider().overlay(Theme.separator)
                 TextField("137", text: $flightNumber)
-                    .font(Theme.monoFont(17))
+                    .scaledFont(17, weight: .semibold, design: .monospaced)
                     .keyboardType(.numberPad)
             }
         } header: {
@@ -129,11 +131,11 @@ struct ManualFlightView: View {
             Text(label)
             Spacer()
             TextField("IATA", text: text)
-                .font(Theme.codeFont(20))
+                .scaledFont(20, weight: .heavy)
                 .multilineTextAlignment(.trailing)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
-                .frame(width: 90)
+                .frame(minWidth: 90)
                 .onChange(of: text.wrappedValue) { _, newValue in
                     // Three letters is the whole format; trimming as they type
                     // beats validating after the fact.

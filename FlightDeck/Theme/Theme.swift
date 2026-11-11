@@ -11,16 +11,29 @@ enum Theme {
     static let cardElevated = Color(red: 0.137, green: 0.137, blue: 0.169) // #232330
     static let separator = Color.white.opacity(0.08)
 
-    static let accent = Color(red: 0.30, green: 0.56, blue: 1.0)           // Flighty-ish blue
+    static let accent = Color(red: 0.30, green: 0.56, blue: 1.0)           // primary accent
     static let textPrimary = Color.white
     static let textSecondary = Color.white.opacity(0.55)
-    static let textTertiary = Color.white.opacity(0.35)
+    static let textTertiary = Color.white.opacity(0.48)
 
     static let green = Color(red: 0.20, green: 0.84, blue: 0.50)
     static let orange = Color(red: 1.00, green: 0.62, blue: 0.15)
     static let red = Color(red: 1.00, green: 0.28, blue: 0.30)
     static let purple = Color(red: 0.66, green: 0.47, blue: 1.00)
     static let cyan = Color(red: 0.25, green: 0.78, blue: 0.92)
+
+    /// Semantic colour for anything generated rather than real — Demo Mode
+    /// banners, "Sample" badges, the simulated-history warning.
+    static let sample = purple
+
+    // MARK: Corner radii
+
+    /// Top-level cards and full-width banners.
+    static let radiusCard: CGFloat = 18
+    /// Elements nested inside a card.
+    static let radiusInner: CGFloat = 12
+    /// Chips, legends and small overlays.
+    static let radiusChip: CGFloat = 10
 
     // MARK: Typography
 
@@ -44,7 +57,7 @@ struct CardBackground: ViewModifier {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.card)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
     }
 }
 
@@ -64,14 +77,44 @@ struct SectionHeader: View {
         HStack(spacing: 6) {
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 12, weight: .bold))
+                    .scaledFont(12, weight: .bold, design: .default)
             }
             Text(title.uppercased())
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold)
                 .kerning(1.2)
             Spacer()
         }
         .foregroundStyle(Theme.textSecondary)
         .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - Dynamic Type
+
+/// Dynamic-Type-aware replacement for `.font(.system(size:weight:design:))`.
+/// `@ScaledMetric` scales the point size with the user's text size relative
+/// to `style`, so the default-size look is unchanged.
+struct ScaledSystemFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design, relativeTo style: Font.TextStyle) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: style)
+        self.weight = weight
+        self.design = design
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+    }
+}
+
+extension View {
+    func scaledFont(_ size: CGFloat,
+                    weight: Font.Weight = .regular,
+                    design: Font.Design = .rounded,
+                    relativeTo style: Font.TextStyle = .body) -> some View {
+        modifier(ScaledSystemFont(size: size, weight: weight, design: design, relativeTo: style))
     }
 }

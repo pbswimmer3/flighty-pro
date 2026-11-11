@@ -25,11 +25,12 @@ struct ArrivalForecastCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
+            // The disclaimer comes before the claim, not after the 42 pt number.
+            if forecast.usesSimulatedHistory { simulatedWarning }
             gauge
             arrivalRow
             confidenceRow
             if !forecast.factors.isEmpty { factorsSection }
-            if forecast.usesSimulatedHistory { simulatedWarning }
         }
         .cardStyle()
     }
@@ -58,17 +59,18 @@ struct ArrivalForecastCard: View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(forecast.percentText)
-                    .font(.system(size: 42, weight: .heavy, design: .rounded))
+                    .scaledFont(42, weight: .heavy)
+                    .monospacedDigit()
                     .foregroundStyle(tint)
                 Text("CHANCE OF DELAY")
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold)
                     .kerning(1.1)
                     .foregroundStyle(Theme.textTertiary)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(forecast.riskLabel)
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .scaledFont(15, weight: .heavy)
                     .foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -80,14 +82,17 @@ struct ArrivalForecastCard: View {
                     }
                 }
                 .frame(height: 6)
+                .accessibilityHidden(true)
 
                 if let onTime = forecast.historicalOnTimeRate, forecast.sampleSize > 0 {
                     Text("Historically \(Fmt.percent(onTime)) on time")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .scaledFont(11, weight: .medium)
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(forecast.percentText) chance of delay, \(forecast.riskLabel)")
     }
 
     // MARK: - Predicted arrival
@@ -109,10 +114,10 @@ struct ArrivalForecastCard: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 10, weight: .bold))
+                    .scaledFont(11, weight: .bold, design: .default)
                     .foregroundStyle(Theme.textTertiary)
                 Text("Most likely between \(Fmt.time(forecast.earlyArrival, airportIATA: flight.destinationIATA)) and \(Fmt.time(forecast.lateArrival, airportIATA: flight.destinationIATA))")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold)
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
             }
@@ -121,7 +126,7 @@ struct ArrivalForecastCard: View {
 
     private var confidenceRow: some View {
         Text(forecast.basis)
-            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .scaledFont(11, weight: .medium)
             .foregroundStyle(Theme.textTertiary)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -135,37 +140,42 @@ struct ArrivalForecastCard: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: showingFactors ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .scaledFont(11, weight: .bold, design: .default)
                     Text("What's driving this")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .scaledFont(12, weight: .bold)
                     Spacer()
                     Text("\(forecast.factors.count)")
-                        .font(Theme.monoFont(11))
+                        .scaledFont(11, weight: .semibold, design: .monospaced)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textTertiary)
                 }
                 .foregroundStyle(Theme.accent)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(factorsToggleLabel)
 
             if showingFactors {
                 ForEach(forecast.factors) { factor in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: factor.icon)
-                            .font(.system(size: 14, weight: .bold))
+                            .scaledFont(14, weight: .bold, design: .default)
                             .foregroundStyle(factor.raisesRisk ? Theme.orange : Theme.accent)
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(factor.label)
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .scaledFont(13, weight: .bold)
                             Text(factor.detail)
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .scaledFont(11, weight: .medium)
                                 .foregroundStyle(Theme.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 4)
                         if factor.minutes != 0 {
                             Text(factor.minutes > 0 ? "+\(factor.minutes)m" : "\(factor.minutes)m")
-                                .font(Theme.monoFont(12))
+                                .scaledFont(12, weight: .semibold, design: .monospaced)
+                                .monospacedDigit()
                                 .foregroundStyle(factor.minutes > 0 ? Theme.orange : Theme.green)
                         }
                     }
@@ -174,19 +184,26 @@ struct ArrivalForecastCard: View {
         }
     }
 
+    private var factorsToggleLabel: String {
+        showingFactors
+            ? "Hide what's driving this"
+            : "Show what's driving this, \(forecast.factors.count) factors"
+    }
+
     private var simulatedWarning: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "testtube.2")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Theme.purple)
-            Text("Demo Mode: this forecast is built from generated history, not real flights. Add an AeroDataBox key in Settings to forecast from actual past performance.")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .scaledFont(12, weight: .bold, design: .default)
+                .foregroundStyle(Theme.sample)
+                .accessibilityHidden(true)
+            Text("Demo Mode: this forecast is built from generated history, not real flights. With an AeroDataBox key it uses actual past performance.")
+                .scaledFont(11, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.purple.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Theme.sample.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusInner, style: .continuous))
     }
 }

@@ -31,7 +31,7 @@ struct FlightMapView: View {
                         Label("Route map unavailable", systemImage: "map")
                             .foregroundStyle(Theme.textSecondary)
                         Text(missingAirportsNote)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .scaledFont(12, weight: .medium)
                             .foregroundStyle(Theme.textTertiary)
                             .multilineTextAlignment(.center)
                     }
@@ -104,7 +104,17 @@ struct FlightMapView: View {
                 .allowsHitTesting(false)
             }
             .overlay(alignment: .topTrailing) { sourceBadge }
+            // The aircraft is drawn in a Canvas VoiceOver can't see, so the
+            // map speaks as one element instead of MapKit's raw pieces.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilitySummary)
         }
+    }
+
+    private var accessibilitySummary: String {
+        let base = "Route map, \(flight.originIATA) to \(flight.destinationIATA)"
+        guard let badge = badgeLabel else { return base }
+        return "\(base). \(badge)"
     }
 
     private var frameInterval: Double? {
@@ -192,7 +202,8 @@ struct FlightMapView: View {
     private var sourceBadge: some View {
         if let label = badgeLabel {
             Text(label)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .scaledFont(11, weight: .bold)
+                .monospacedDigit()
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)

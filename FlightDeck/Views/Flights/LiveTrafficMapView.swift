@@ -66,7 +66,7 @@ struct LiveTrafficMapView: View {
                 if let centerLabel {
                     Annotation(centerLabel, coordinate: center) {
                         Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 16))
+                            .scaledFont(16, design: .default)
                             .foregroundStyle(Theme.accent)
                     }
                 }
@@ -76,6 +76,11 @@ struct LiveTrafficMapView: View {
             .onTapGesture { (point: CGPoint) in
                 selectTrack(near: point, proxy: proxy)
             }
+            // The aircraft live in a Canvas VoiceOver can't see. Put on the
+            // Map itself, before the chrome overlays, so the status pill,
+            // legend and selected card stay reachable on their own.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(mapSummary)
             .overlay(alignment: .top) { statusBar }
             .overlay(alignment: .bottomLeading) { legend }
             .overlay(alignment: .bottom) { selectedCard }
@@ -217,38 +222,39 @@ struct LiveTrafficMapView: View {
             let report = track.report
             HStack(spacing: 10) {
                 Image(systemName: report.onGround ? "airplane" : "airplane.circle.fill")
-                    .font(.system(size: 16, weight: .bold))
+                    .scaledFont(16, weight: .bold, design: .default)
                     .foregroundStyle(report.onGround ? Theme.cyan : Theme.accent)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(report.label)
-                            .font(.system(size: 14, weight: .heavy, design: .rounded))
+                            .scaledFont(14, weight: .heavy)
                         if let type = report.icaoType {
                             Text(type)
-                                .font(Theme.monoFont(10, weight: .medium))
+                                .scaledFont(11, weight: .medium, design: .monospaced)
                                 .foregroundStyle(Theme.textTertiary)
                         }
                     }
                     if let route = routes.route(for: report.callsign) {
                         let label = RouteLabel(route: route, report: report)
                         Text(label.headline)
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .scaledFont(13, weight: .heavy)
                             .foregroundStyle(Theme.accent)
                         Text(label.note)
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .scaledFont(11, weight: .medium)
                             .foregroundStyle(label.contradictsSchedule ? Theme.orange : Theme.textTertiary)
                     } else if routes.isLoading(report.callsign) {
                         Text("Looking up route…")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .scaledFont(11, weight: .medium)
                             .foregroundStyle(Theme.textTertiary)
                     } else if routes.isUnknown(report.callsign) {
                         Text("Route unknown")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .scaledFont(11, weight: .medium)
                             .foregroundStyle(Theme.textTertiary)
                     }
                     Text(detailLine(report))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .scaledFont(11, weight: .medium)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textSecondary)
                 }
 
@@ -258,10 +264,13 @@ struct LiveTrafficMapView: View {
                     withAnimation(.easeInOut(duration: 0.15)) { selectedHex = nil }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 17))
+                        .scaledFont(17, design: .default)
                         .foregroundStyle(Theme.textTertiary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
             }
             .padding(11)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -327,15 +336,44 @@ struct LiveTrafficMapView: View {
                 Text("No ADS-B coverage here")
             case .failed(let message):
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.orange)
-                Text(message).lineLimit(1)
+                Text(Self.failureText(message)).lineLimit(1)
             }
         }
-        .font(.system(size: 11, weight: .bold, design: .rounded))
+        .scaledFont(11, weight: .bold)
+        .monospacedDigit()
         .foregroundStyle(Theme.textPrimary)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(.black.opacity(0.65), in: Capsule())
+        .accessibilityElement(children: .combine)
         .padding(.top, 10)
+    }
+
+    /// The rate-limit text says when it retries and is worth showing; "adsb.lol
+    /// returned HTTP 503" is not something to put in front of a traveller.
+    private static func failureText(_ message: String) -> String {
+        message.localizedCaseInsensitiveContains("retrying")
+            ? message : "Live traffic unavailable right now"
+    }
+
+    private var mapSummary: String {
+        let place = centerLabel ?? "the airport"
+        return "Live traffic map around \(place). \(statusSummary)"
+    }
+
+    /// What `statusBar` says, as one sentence for VoiceOver on the map.
+    private var statusSummary: String {
+        switch store.status {
+        case .idle, .loading:
+            return "Finding aircraft…"
+        case .live:
+            let shown = visibleTracks.count
+            return shown == 1 ? "1 aircraft" : "\(shown) aircraft"
+        case .noCoverage:
+            return "No ADS-B coverage here"
+        case .failed(let message):
+            return Self.failureText(message)
+        }
     }
 
     private var legend: some View {
@@ -351,7 +389,8 @@ struct LiveTrafficMapView: View {
             }
         }
         .padding(8)
-        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: Theme.radiusChip, style: .continuous))
+        .accessibilityElement(children: .combine)
         .padding(10)
         // Step aside for the selected-aircraft card rather than sitting under it.
         .padding(.bottom, selectedTrack == nil ? 0 : 78)
@@ -360,8 +399,9 @@ struct LiveTrafficMapView: View {
     private func legendRow(_ color: Color, _ text: String) -> some View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 6, height: 6)
+                .accessibilityHidden(true)
             Text(text)
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .scaledFont(11, weight: .semibold)
                 .foregroundStyle(Theme.textPrimary)
         }
     }

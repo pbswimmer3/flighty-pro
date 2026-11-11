@@ -67,3 +67,83 @@ workflows:
           xcodebuild build -project FlightDeck.xcodeproj -scheme FlightDeck \
             -destination 'generic/platform=iOS' -configuration Release \
             CODE_SIGNING_ALLOWED=NO | xcpretty || exit ${PIPESTATUS[0]}
+
+  # Manual / API start only (scripts/capture_screens.py). Boots a Pro Max
+  # simulator and captures one PNG per scene using the -FDScreenshot launch
+  # argument (FlightDeck/Utilities/ScreenshotMode.swift).
+  screenshots:
+    name: Store screenshots (simulator)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: latest
+      vars:
+        BUNDLE_ID: com.personal.flightdeck
+        SCENES: "flights detail tracking passport airports airportTraffic delays connection settings"
+        # DEVICE: "6.9" (default, newest Pro Max) or "6.5" (iPhone 11 Pro Max / XS Max / 14 Plus class)
+    scripts:
+      - name: Build for simulator
+        script: |
+          xcodebuild build -project FlightDeck.xcodeproj -scheme FlightDeck \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO | xcpretty || exit ${PIPESTATUS[0]}
+      - name: Boot simulator
+        script: |
+          # DEVICE: unset/"6.9" = newest "iPhone N Pro Max"; "6.5" = iPhone 14 Plus /
+          # 11 Pro Max / XS Max class (first one the image has, newest runtime).
+          export DEVICE="${DEVICE:-6.9}"
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, os, re, sys
+          data = json.load(sys.stdin)["devices"]
+          want = os.environ.get("DEVICE", "6.9")
+          prefs = ["iPhone 14 Plus", "iPhone 11 Pro Max", "iPhone XS Max"]
+          best = None
+          for runtime, devs in data.items():
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not m: continue
+              ver = (int(m.group(1)), int(m.group(2)))
+              for d in devs:
+                  if want == "6.5":
+                      if d["name"] not in prefs: continue
+                      key = (-prefs.index(d["name"]), ver)
+                  else:
+                      if not re.match(r"iPhone \d+ Pro Max$", d["name"]): continue
+                      key = (ver, int(re.search(r"iPhone (\d+)", d["name"]).group(1)))
+                  if best is None or key > best[0]:
+                      best = (key, d["udid"], d["name"])
+          if not best:
+              sys.stderr.write("DEVICE=%s: no matching simulator on this image\n" % want)
+              sys.exit(0)
+          sys.stderr.write("using %s\n" % best[2])
+          print(best[1])
+          ')
+          if [ -z "$UDID" ]; then
+            echo "SKIP: no simulator for DEVICE=${DEVICE:-6.9} on this image"
+            exit 1
+          fi
+          echo "UDID=$UDID" > sim.env
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar booted override --time 9:41 --batteryState discharging --batteryLevel 100 --cellularBars 4 --wifiBars 3 --dataNetwork wifi
+          APP=$(find build/Build/Products -name 'FlightDeck.app' -path '*iphonesimulator*' | head -1)
+          xcrun simctl install booted "$APP"
+          # Warm-up: launch and kill once, then wait, so first-boot system banners
+          # ("Ready for Apple Intelligence") are gone before the first capture.
+          xcrun simctl launch booted "$BUNDLE_ID" -FDScreenshot flights || true
+          sleep 20
+          xcrun simctl terminate booted "$BUNDLE_ID" || true
+          # The app never asks for location (no CLLocationManager), so nothing to grant.
+      - name: Capture scenes
+        script: |
+          mkdir -p screenshots
+          for scene in $SCENES; do
+            wait=10
+            case "$scene" in tracking|airports|airportTraffic) wait=15 ;; esac
+            xcrun simctl terminate booted "$BUNDLE_ID" || true
+            xcrun simctl launch booted "$BUNDLE_ID" -FDScreenshot "$scene" || { echo "launch failed: $scene"; continue; }
+            sleep $wait
+            xcrun simctl io booted screenshot "screenshots/$scene.png" || echo "screenshot failed: $scene"
+          done
+          ls -l screenshots
+    artifacts:
+      - screenshots/*.png

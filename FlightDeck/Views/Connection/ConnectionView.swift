@@ -23,6 +23,7 @@ struct ConnectionView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    DemoBanner()
                     if store.flights.count < 2 {
                         emptyState
                     } else {
@@ -80,9 +81,9 @@ struct ConnectionView: View {
                 .foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(pair.inbound.originIATA) → \(pair.inbound.destinationIATA) → \(pair.outbound.destinationIATA)")
-                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .scaledFont(15, weight: .heavy)
                 Text("\(pair.inbound.displayNumber) connecting to \(pair.outbound.displayNumber)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -93,8 +94,10 @@ struct ConnectionView: View {
         }
         .cardStyle(padding: 14)
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .strokeBorder(selected ? Theme.accent : .clear, lineWidth: 1.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var pickerCard: some View {
@@ -107,20 +110,22 @@ struct ConnectionView: View {
     }
 
     private func flightPicker(title: String, selection: Binding<UUID?>) -> some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .scaledFont(13, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
-            Spacer()
             Picker(title, selection: selection) {
-                Text("None").tag(UUID?.none)
+                Text("None").lineLimit(1).tag(UUID?.none)
                 ForEach(store.flights) { flight in
                     Text("\(flight.displayNumber) \(flight.originIATA)→\(flight.destinationIATA)")
+                        .lineLimit(1)
                         .tag(UUID?.some(flight.id))
                 }
             }
+            .labelsHidden()
             .pickerStyle(.menu)
             .tint(Theme.accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -129,27 +134,19 @@ struct ConnectionView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(Theme.orange)
             Text("These flights don't connect: the first arrives at \(inbound?.destinationIATA ?? "—") but the second departs \(outbound?.originIATA ?? "—").")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .scaledFont(13, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
         }
         .cardStyle()
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 54))
-                .foregroundStyle(Theme.accent)
-                .padding(.top, 80)
-            Text("Track two flights to analyze a connection")
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .multilineTextAlignment(.center)
-            Text("Add both legs of your trip in the Flights tab. FlightDeck auto-detects connections and rates your layover risk live.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
+        ContentUnavailableView {
+            Label("Track two flights to analyze a connection", systemImage: "arrow.triangle.branch")
+        } description: {
+            Text("Add both legs of your trip in the Flights tab. Flight Dash auto-detects connections and rates your layover risk live.")
         }
-        .padding()
+        .padding(.top, 40)
     }
 }
 
@@ -160,20 +157,20 @@ private struct AssessmentCard: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            StatusPill(text: assessment.risk.rawValue, color: assessment.risk.color)
-                .scaleEffect(1.25)
+            StatusPill(text: assessment.risk.rawValue, color: assessment.risk.color, large: true)
                 .padding(.top, 6)
 
             Text(assessment.layoverDescription)
-                .font(Theme.codeFont(52))
+                .scaledFont(52, weight: .heavy)
                 .foregroundStyle(assessment.risk.color)
+                .monospacedDigit()
             Text("connection time at \(assessment.inbound.destinationIATA)")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .scaledFont(13, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
                 .padding(.top, -10)
 
             Text(assessment.risk.explanation)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .scaledFont(14, weight: .semibold)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.horizontal)
@@ -208,8 +205,6 @@ private struct AssessmentCard: View {
             InfoRow(label: "Departs \(assessment.inbound.destinationIATA)",
                     value: Fmt.time(assessment.outbound.bestDeparture,
                                     airportIATA: assessment.outbound.originIATA))
-            InfoRow(label: "Minimum connection time",
-                    value: "\(assessment.minimumConnectionMinutes) min")
             if assessment.terminalChange {
                 InfoRow(label: "Terminal change",
                         value: "\(assessment.inbound.arrivalTerminal ?? "?") → \(assessment.outbound.departureTerminal ?? "?")",
@@ -220,8 +215,8 @@ private struct AssessmentCard: View {
                         value: changeText,
                         valueColor: assessment.bufferChangeMinutes < 0 ? Theme.orange : Theme.green)
             }
-            InfoRow(label: "Ruleset",
-                    value: assessment.isInternational ? "International" : "Domestic")
+            InfoRow(label: "Connection rule",
+                    value: "\(assessment.isInternational ? "International" : "Domestic") · \(assessment.minimumConnectionMinutes) min minimum")
         }
     }
 

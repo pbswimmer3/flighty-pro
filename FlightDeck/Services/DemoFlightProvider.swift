@@ -126,6 +126,52 @@ struct DemoFlightProvider: FlightDataProvider {
         return flights
     }
 
+    // MARK: - Screenshot seed
+
+    /// Extra past flights for the Passport / Delay Tracker store screenshots.
+    /// Used ONLY by `ScreenshotMode` (see `FlightStore.seedScreenshotFlights`);
+    /// never part of normal Demo Mode. IDs are fixed so seeding is idempotent.
+    static func screenshotPastFlights(now: Date = .now) -> [Flight] {
+        // (code, airline, number, from, to, days ago, hours, arrival delay min, aircraft, seat, cancelled)
+        let rows: [(String, String, String, String, String, Int, Double, Int, String, String?, Bool)] = [
+            ("DL", "Delta Air Lines", "1125", "SFO", "JFK", 296, 5.3, 0, "Boeing 767-300ER", "14A", false),
+            ("UA", "United Airlines", "532", "SFO", "LAX", 262, 1.4, 0, "Boeing 737-800", nil, false),
+            ("DL", "Delta Air Lines", "30", "JFK", "LHR", 231, 7.0, 0, "Airbus A330-900", "22K", false),
+            ("BA", "British Airways", "304", "LHR", "CDG", 229, 1.2, 12, "Airbus A320", nil, false),
+            ("AS", "Alaska Airlines", "331", "SEA", "SFO", 188, 2.1, 0, "Boeing 737-900ER", nil, false),
+            ("UA", "United Airlines", "837", "SFO", "NRT", 150, 11.0, 0, "Boeing 787-9", "31A", false),
+            ("DL", "Delta Air Lines", "2740", "SFO", "JFK", 112, 5.4, 120, "Airbus A321neo", nil, false),
+            ("UA", "United Airlines", "1209", "AUS", "ORD", 74, 2.5, 45, "Boeing 737 MAX 9", nil, false),
+            ("AS", "Alaska Airlines", "1068", "SFO", "LAX", 41, 1.4, 0, "Embraer E175", nil, true),
+            ("DL", "Delta Air Lines", "415", "SFO", "JFK", 19, 5.3, 0, "Airbus A321neo", nil, false),
+        ]
+        let cal = Calendar.current
+        return rows.enumerated().map { i, r in
+            let day = cal.date(byAdding: .day, value: -r.5, to: now) ?? now
+            let dep = cal.date(bySettingHour: 7 + (i * 3) % 10, minute: (i * 20) % 60, second: 0, of: day) ?? day
+            var f = Flight(
+                airlineName: r.1, airlineCode: r.0, flightNumber: r.2,
+                callSign: nil,
+                originIATA: r.3, destinationIATA: r.4,
+                scheduledDeparture: dep,
+                scheduledArrival: dep.addingTimeInterval(r.6 * 3600),
+                departureTerminal: "1", departureGate: "B\(4 + i)",
+                arrivalTerminal: "4", arrivalGate: "A\(2 + i)", baggageClaim: nil,
+                aircraftModel: r.8, registration: "N\(610 + i * 7)DN")
+            f.id = UUID(uuidString: String(format: "5C5C0000-0000-4000-8000-%012d", i + 1)) ?? UUID()
+            f.seat = r.9
+            f.isLiveData = false
+            if r.10 {
+                f.phase = .cancelled
+            } else {
+                f.actualDeparture = dep.addingTimeInterval(Double(r.7) * 60)
+                f.actualArrival = f.scheduledArrival.addingTimeInterval(Double(r.7) * 60)
+                f.phase = .arrived
+            }
+            return f
+        }
+    }
+
     // MARK: - Helpers
 
     /// "DL 482", "dl482", "UA1" → ("DL", "482")

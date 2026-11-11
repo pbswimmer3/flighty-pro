@@ -45,16 +45,17 @@ struct DelayTrackerView: View {
         VStack(spacing: 14) {
             VStack(spacing: 4) {
                 Text(Fmt.longDuration(delays.totalDelayInterval))
-                    .font(.system(size: 46, weight: .heavy, design: .rounded))
+                    .scaledFont(46, weight: .heavy)
+                    .monospacedDigit()
                     .foregroundStyle(delays.totalDelayMinutes > 0 ? Theme.orange : Theme.green)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 Text("LOST TO DELAYS")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold)
                     .kerning(1.4)
                     .foregroundStyle(Theme.textTertiary)
                 Text(scopeLabel)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold)
                     .foregroundStyle(Theme.textSecondary)
             }
             .frame(maxWidth: .infinity)
@@ -112,12 +113,15 @@ struct DelayTrackerView: View {
                 }
             }
             .frame(height: 14)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("On time \(delays.onTimeFlights), delayed \(delays.delayedFlights), cancelled \(delays.cancelledFlights)")
 
             HStack(spacing: 16) {
                 legend(Theme.green, "On time", delays.onTimeFlights)
                 legend(Theme.orange, "Delayed", delays.delayedFlights)
                 legend(Theme.red, "Cancelled", delays.cancelledFlights)
             }
+            .accessibilityHidden(true)
         }
         .cardStyle()
     }
@@ -135,7 +139,8 @@ struct DelayTrackerView: View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 7, height: 7)
             Text("\(label) \(count)")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .scaledFont(12, weight: .semibold)
+                .monospacedDigit()
                 .foregroundStyle(Theme.textSecondary)
         }
     }
@@ -148,13 +153,13 @@ struct DelayTrackerView: View {
                 .padding(.bottom, 8)
             ForEach(delays.recent) { record in
                 HStack(spacing: 12) {
-                    StatusPill(text: "+\(record.minutes)m", color: severityColor(record.minutes))
-                        .frame(width: 76, alignment: .leading)
+                    StatusPill(text: "+\(record.minutes) min", color: severityColor(record.minutes))
+                        .frame(width: 92, alignment: .leading)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(record.designator) · \(record.route)")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .scaledFont(14, weight: .bold)
                         Text(Fmt.fullDate(record.date))
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .scaledFont(11, weight: .medium)
                             .foregroundStyle(Theme.textSecondary)
                     }
                     Spacer()
@@ -171,7 +176,7 @@ struct DelayTrackerView: View {
     private func severityColor(_ minutes: Int) -> Color {
         switch minutes {
         case ..<30: return Theme.orange
-        case ..<90: return Color(red: 1.0, green: 0.45, blue: 0.2)
+        case ..<90: return Theme.orange
         default: return Theme.red
         }
     }
@@ -182,15 +187,15 @@ struct DelayTrackerView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: "How This Is Counted", systemImage: "info.circle")
             Text("A flight counts as delayed when it arrives \(Flight.delayThresholdMinutes) or more minutes after its scheduled arrival — the same threshold the US Department of Transportation uses, so these numbers line up with published airline statistics.")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .scaledFont(12, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Time lost adds up the arrival delay on those delayed flights only — a flight that landed a few minutes late doesn't count against you, and arriving early doesn't refund an hour you already spent at a gate.")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .scaledFont(12, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Cancellations are tracked separately: they aren't flights you took, so they're excluded from distance, hours and on-time rate.")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .scaledFont(12, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

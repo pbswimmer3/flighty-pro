@@ -14,21 +14,23 @@ struct PassportTile: View {
         VStack(alignment: .leading, spacing: 4) {
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold, design: .default)
                     .foregroundStyle(color.opacity(0.85))
+                    .accessibilityHidden(true)
             }
             Text(value)
-                .font(.system(size: 27, weight: .heavy, design: .rounded))
+                .scaledFont(27, weight: .heavy)
+                .monospacedDigit()
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             Text(caption.uppercased())
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .scaledFont(11, weight: .bold)
                 .kerning(0.8)
                 .foregroundStyle(Theme.textTertiary)
             if let footnote {
                 Text(footnote)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -37,7 +39,8 @@ struct PassportTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(Theme.cardElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -60,19 +63,20 @@ struct RankRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text("\(rank)")
-                .font(Theme.monoFont(12))
+                .scaledFont(12, weight: .semibold, design: .monospaced)
                 .foregroundStyle(Theme.textTertiary)
                 .frame(width: 18, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(title)
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .scaledFont(14, weight: .heavy)
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Spacer(minLength: 8)
                     Text("\(count) \(count == 1 ? String(unit.dropLast()) : unit)")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .scaledFont(12, weight: .bold)
+                        .monospacedDigit()
                         .foregroundStyle(tint)
                         .fixedSize()
                 }
@@ -84,15 +88,25 @@ struct RankRow: View {
                     }
                 }
                 .frame(height: 4)
+                .accessibilityHidden(true)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .scaledFont(11, weight: .medium)
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
             }
         }
         .padding(.vertical, 7)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        let countText = "\(count) \(count == 1 ? String(unit.dropLast()) : unit)"
+        let base = "\(rank). \(title), \(countText)"
+        if let subtitle { return "\(base), \(subtitle)" }
+        return base
     }
 }
 
@@ -119,7 +133,7 @@ struct RankedCard: View {
 
             if rows.isEmpty {
                 Text(emptyMessage)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .scaledFont(13, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
                     .padding(.vertical, 6)
             } else {
@@ -138,8 +152,10 @@ struct RankedCard: View {
                         withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
                     } label: {
                         Text(expanded ? "Show less" : "Show all \(rows.count)")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .scaledFont(13, weight: .bold)
                             .foregroundStyle(Theme.accent)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 4)
@@ -154,7 +170,14 @@ struct RankedCard: View {
 /// still answer "when do I actually fly?".
 struct WeekdayChart: View {
     let histogram: [Int]
-    private let labels = ["S", "M", "T", "W", "T", "F", "S"]
+    /// Sunday-first, matching `PassportStats.weekdayHistogram[0]`.
+    private let labels = Calendar.current.shortWeekdaySymbols
+
+    private var summary: String {
+        "Departures by day of week: " + zip(Calendar.current.weekdaySymbols, histogram)
+            .map { "\($0) \($1)" }
+            .joined(separator: ", ")
+    }
 
     private var peak: Int { max(histogram.max() ?? 0, 1) }
 
@@ -164,19 +187,22 @@ struct WeekdayChart: View {
                 let count = index < histogram.count ? histogram[index] : 0
                 VStack(spacing: 5) {
                     Text(count > 0 ? "\(count)" : "")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .scaledFont(11, weight: .bold)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textTertiary)
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(count == peak && count > 0 ? Theme.accent : Theme.accent.opacity(0.32))
                         .frame(height: max(CGFloat(count) / CGFloat(peak) * 60, 3))
                     Text(labels[index])
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .scaledFont(11, weight: .bold)
                         .foregroundStyle(Theme.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
         .frame(height: 92, alignment: .bottom)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(summary)
     }
 }
 
@@ -194,14 +220,18 @@ struct ScopePicker: View {
                         withAnimation(.easeInOut(duration: 0.15)) { selection = scope }
                     } label: {
                         Text(scope.label)
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .scaledFont(13, weight: .heavy)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(isSelected ? Theme.accent : Theme.cardElevated)
-                            .foregroundStyle(isSelected ? .white : Theme.textSecondary)
+                            .background(isSelected ? Theme.accent.opacity(0.22) : Theme.cardElevated)
+                            .foregroundStyle(isSelected ? Theme.accent : Theme.textSecondary)
                             .clipShape(Capsule())
+                            .overlay(Capsule().strokeBorder(isSelected ? Theme.accent.opacity(0.6) : .clear, lineWidth: 1))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
             .padding(.horizontal, 4)

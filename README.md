@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/screenshots/icon.png" width="96" alt="FlightDeck icon" />
+<img src="docs/screenshots/icon.png" width="96" alt="Flight Dash icon" />
 
-# FlightDeck
+# Flight Dash
 
 **A personal flight tracker for iPhone — live tracking, delay forecasts, and a lifetime Passport.**
 
@@ -27,7 +27,7 @@ No accounts, no subscription, no backend. Open the project, press Run, and it
 works — Demo Mode gives you a live sample trip straight away.
 
 > Inspired by [Flighty](https://flighty.com), which is excellent — go buy it.
-> FlightDeck is an original personal-use app and contains no Flighty code or artwork.
+> Flight Dash is an original personal-use app and contains no Flighty code or artwork.
 
 ---
 
@@ -132,7 +132,7 @@ Pick an iPhone simulator and press **⌘R**. That's it — you need Xcode 16+ an
 
 <br />
 
-1. In Xcode: **FlightDeck** target → **Signing & Capabilities** → tick *Automatically manage signing* and choose your team.
+1. In Xcode: **FlightDeck** target (the code name; the app shows as Flight Dash) → **Signing & Capabilities** → tick *Automatically manage signing* and choose your team.
 2. If the bundle ID collides, change `com.personal.flightdeck` to something unique.
 3. On the phone, turn on **Settings → Privacy & Security → Developer Mode**.
 4. Select your iPhone in the toolbar and press **⌘R**.
@@ -178,7 +178,7 @@ flowchart LR
     DB["adsbdb<br/>callsign → route"] --> App
     Demo["Demo Mode<br/>(default)"] --> App
     ADB["AeroDataBox<br/>🔑 optional key"] -.-> App
-    App(("FlightDeck"))
+    App(("Flight Dash"))
 ```
 
 | Data | Source | Key? |
@@ -238,3 +238,31 @@ major hubs.
 <div align="center">
 <sub>Screenshots are from the iOS Simulator in Demo Mode.</sub>
 </div>
+
+## App Store
+
+Everything needed to list Flight Dash on TestFlight (outside testers) or the App Store: eight 6.9-inch screenshot cards (a 6.5-inch set is in `docs/store/screenshots/6.5/`), listing copy, review notes and privacy answers. The cards are rendered from real simulator captures of Demo Mode.
+
+<div align="center">
+<img src="docs/store/screenshots/6.9/01-your-flight-live.png" width="23%" alt="your flight live">
+<img src="docs/store/screenshots/6.9/02-every-flight-one-glance.png" width="23%" alt="every flight one glance">
+<img src="docs/store/screenshots/6.9/03-who-is-around-you.png" width="23%" alt="who is around you">
+<img src="docs/store/screenshots/6.9/04-will-you-make-it.png" width="23%" alt="will you make it">
+<br />
+<img src="docs/store/screenshots/6.9/05-passport.png" width="23%" alt="passport">
+<img src="docs/store/screenshots/6.9/06-airport-status.png" width="23%" alt="airport status">
+<img src="docs/store/screenshots/6.9/07-taxiway.png" width="23%" alt="taxiway">
+<img src="docs/store/screenshots/6.9/08-every-minute-lost.png" width="23%" alt="every minute lost">
+</div>
+
+| What | Where |
+|---|---|
+| Listing copy and character limits | [docs/store/listing.md](docs/store/listing.md) |
+| App Review notes | [docs/store/review-notes.md](docs/store/review-notes.md) |
+| App Privacy answers | [docs/store/app-privacy-answers.md](docs/store/app-privacy-answers.md) |
+| Support page text | [docs/store/support.md](docs/store/support.md) |
+| Privacy policy | [docs/privacy-policy.md](docs/privacy-policy.md) |
+| UI review | [docs/ui-review.md](docs/ui-review.md) |
+| Store strategy and card spec | [docs/store/store-review.md](docs/store/store-review.md) |
+| Regenerate | `python scripts/capture_screens.py --branch <branch> --out docs/store/raw` (Codemagic simulator), then `python scripts/make_store_cards.py`, then `python scripts/check_listing.py` |
+| Share image, contact sheet | [share-image.png](docs/store/share-image.png) · [contact-sheet.png](docs/store/contact-sheet.png) |

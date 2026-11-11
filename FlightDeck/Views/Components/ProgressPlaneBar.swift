@@ -6,6 +6,9 @@ struct ProgressPlaneBar: View {
     /// 0.0 = at gate, 1.0 = arrived.
     let progress: Double
     var activeColor: Color = Theme.accent
+    /// Hidden by default: on a flight card the progress is already in the
+    /// card's own spoken label. Pass `false` where the bar stands alone.
+    var accessibilityHidden = true
 
     private var clamped: Double { min(max(progress, 0), 1) }
 
@@ -33,7 +36,7 @@ struct ProgressPlaneBar: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
 
                 Image(systemName: "airplane")
-                    .font(.system(size: 14, weight: .bold))
+                    .scaledFont(14, weight: .bold, design: .default)
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.6), radius: 3)
                     .position(x: min(max(x, 10), width - 10), y: geo.size.height / 2)
@@ -41,6 +44,9 @@ struct ProgressPlaneBar: View {
             .frame(height: geo.size.height)
         }
         .frame(height: 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(Int(clamped * 100)) percent of the way")
+        .accessibilityHidden(accessibilityHidden)
     }
 }
 

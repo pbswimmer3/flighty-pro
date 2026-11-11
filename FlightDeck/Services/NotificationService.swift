@@ -200,7 +200,7 @@ final class NotificationService: ObservableObject {
     func sendTestAlert() async {
         guard isAuthorized else { return }
         let content = UNMutableNotificationContent()
-        content.title = "FlightDeck alerts are on"
+        content.title = "Flight Dash alerts are on"
         content.body = "This is what a boarding or gate-change alert will look like."
         content.sound = .default
         let request = UNNotificationRequest(

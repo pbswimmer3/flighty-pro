@@ -38,19 +38,23 @@ struct AddFlightView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // In Demo Mode a number search can only ever return a made-up
+                // flight, so the path that adds a *real* one goes first.
+                if isDemo { manualSection }
+
                 Section {
                     TextField("Flight number (e.g. DL 482)", text: $flightNumber)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
-                        .font(Theme.monoFont(17))
+                        .scaledFont(17, weight: .semibold, design: .monospaced)
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 } header: {
                     Text("Find a flight")
                 } footer: {
                     if isDemo {
-                        Text("Demo Mode is on — lookups return realistic simulated flights. Add an AeroDataBox key in Settings for real data.")
+                        Text("Demo Mode is on, so any number you search returns a sample flight with made-up times. To add a real flight, use *Add your real flight* above, or add a free AeroDataBox key in Settings.")
                     } else if isBeyondLiveWindow, daysAhead > 0 {
-                        Text("That's \(daysAhead) days out. If the live feed doesn't have that date yet, FlightDeck copies this week's timetable for the same flight and confirms it automatically once it's within \(AeroDataBoxProvider.liveWindowDays) days.")
+                        Text("That's \(daysAhead) days out. If the live feed doesn't have that date yet, Flight Dash copies this week's timetable for the same flight and confirms it automatically once it's within \(AeroDataBoxProvider.liveWindowDays) days.")
                     } else if isBeyondLiveWindow {
                         Text("That's \(-daysAhead) days ago. How far back lookups reach depends on your AeroDataBox plan — if it isn't found, add it manually below.")
                     }
@@ -76,7 +80,7 @@ struct AddFlightView: View {
                 }
 
                 if !results.isEmpty {
-                    Section("Results") {
+                    Section(isDemo ? "Sample results" : "Results") {
                         ForEach(results) { flight in
                             Button {
                                 store.add(flight)
@@ -88,7 +92,7 @@ struct AddFlightView: View {
                     }
                 }
 
-                manualSection
+                if !isDemo { manualSection }
 
                 Section {
                     Button {
@@ -98,9 +102,11 @@ struct AddFlightView: View {
                         Label("Add Sample Trip (4 flights)", systemImage: "wand.and.stars")
                     }
                 } footer: {
-                    Text("A showcase itinerary: one flight in the air now, a JFK→LHR connection, tomorrow's flight, and a completed one.")
+                    Text("A showcase itinerary built around the current time: one flight in the air now, a JFK → LHR connection, tomorrow's flight, and a completed one. Everything on it is made up.")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle("Add Flight")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -138,7 +144,7 @@ struct AddFlightView: View {
 
     @ViewBuilder
     private var manualSection: some View {
-        if canAddManually || !results.isEmpty || !flightNumber.isEmpty {
+        if isDemo || canAddManually || !results.isEmpty || !flightNumber.isEmpty {
             Section {
                 Button {
                     showManualEntry = true
@@ -148,11 +154,11 @@ struct AddFlightView: View {
                             .foregroundStyle(Theme.accent)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(manualButtonTitle)
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .scaledFont(15, weight: .bold)
                                 .foregroundStyle(Theme.textPrimary)
                             if let route = lookedUpRoute {
                                 Text("\(route.arrow)\(route.airlineName.map { " · \($0)" } ?? "")")
-                                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                    .scaledFont(13, weight: .heavy)
                                     .foregroundStyle(Theme.accent)
                             } else if isLookingUpRoute {
                                 Text("Looking up the route…")
@@ -164,7 +170,7 @@ struct AddFlightView: View {
                     }
                 }
             } header: {
-                Text("Enter it yourself")
+                Text(isDemo ? "Add your real flight" : "Enter it yourself")
             } footer: {
                 Text(lookedUpRoute == nil
                      ? "Works for any flight, any date, anywhere — including ones the live feed doesn't carry."
@@ -185,21 +191,29 @@ struct AddFlightView: View {
             AirlineBadge(code: flight.airlineCode, size: 32)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(flight.displayNumber)  \(flight.originIATA) → \(flight.destinationIATA)")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .scaledFont(15, weight: .bold)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textPrimary)
                 Text("Departs \(Fmt.time(flight.scheduledDeparture, airportIATA: flight.originIATA)) · \(Fmt.dayAndDate(flight.scheduledDeparture, tz: flight.originAirport?.timeZone))")
                     .font(.footnote)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textSecondary)
                 if let reference = flight.projectedFrom {
                     Text("Times copied from \(Fmt.dayAndDate(reference, tz: flight.originAirport?.timeZone)) · confirmed \(AeroDataBoxProvider.liveWindowDays) days out")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundStyle(Theme.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()
+            // Demo results are invented from the number typed — say so on the
+            // row itself, where the decision to add it is made.
+            if isDemo {
+                StatusPill(text: "Sample", color: Theme.sample)
+            }
             Image(systemName: "plus.circle.fill")
                 .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
         }
     }
 

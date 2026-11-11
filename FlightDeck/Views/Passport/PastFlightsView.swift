@@ -74,11 +74,12 @@ struct PastFlightsView: View {
                         } header: {
                             HStack {
                                 Text(group.title)
-                                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                    .scaledFont(13, weight: .heavy)
                                     .foregroundStyle(Theme.textSecondary)
                                 Spacer()
                                 Text("\(group.flights.count)")
-                                    .font(Theme.monoFont(12))
+                                    .scaledFont(12, weight: .semibold, design: .monospaced)
+                                    .monospacedDigit()
                                     .foregroundStyle(Theme.textTertiary)
                             }
                             .padding(.horizontal, 4)
@@ -98,26 +99,16 @@ struct PastFlightsView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 44))
-                .foregroundStyle(Theme.textTertiary)
-                .padding(.top, 60)
-            Text("No past flights yet")
-                .font(.system(size: 19, weight: .heavy, design: .rounded))
+        ContentUnavailableView {
+            Label("No past flights yet", systemImage: "clock.arrow.circlepath")
+        } description: {
             Text("A flight moves here on its own 30 minutes after it lands.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
+        .padding(.top, 40)
     }
 
     private var noResults: some View {
-        Text("Nothing matches “\(query)”.")
-            .font(.system(size: 14, weight: .medium, design: .rounded))
-            .foregroundStyle(Theme.textSecondary)
+        ContentUnavailableView.search(text: query)
             .padding(.top, 40)
     }
 }
@@ -135,13 +126,14 @@ struct PastFlightRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("\(flight.originIATA) → \(flight.destinationIATA)")
-                        .font(Theme.codeFont(19))
+                        .scaledFont(19, weight: .heavy)
                     Text(flight.displayNumber)
-                        .font(Theme.monoFont(11))
+                        .scaledFont(11, weight: .semibold, design: .monospaced)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textTertiary)
                 }
                 Text(subtitle)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
             }
@@ -152,16 +144,18 @@ struct PastFlightRow: View {
                 if flight.phase == .cancelled {
                     StatusPill(text: "Cancelled", color: Theme.red)
                 } else if delayMinutes >= Flight.delayThresholdMinutes {
-                    StatusPill(text: "+\(delayMinutes)m", color: Theme.orange)
+                    StatusPill(text: "+\(delayMinutes) min", color: Theme.orange)
                 } else {
                     StatusPill(text: "On Time", color: Theme.green)
                 }
                 Text(Fmt.duration(flight.duration))
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .scaledFont(11, weight: .bold)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textTertiary)
             }
         }
         .cardStyle(padding: 12)
+        .accessibilityElement(children: .combine)
     }
 
     private var subtitle: String {

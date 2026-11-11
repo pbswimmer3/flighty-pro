@@ -5,7 +5,13 @@ import SwiftUI
 /// key), hidden for store screenshots.
 struct DemoBanner: View {
     @EnvironmentObject private var settings: SettingsStore
-    var text = "Demo Mode · these flights are samples with made-up times. Airport status, weather and live aircraft are real."
+    var text: String
+
+    /// Explicit so other files can pass `text:` — the private
+    /// `@EnvironmentObject` would otherwise make the memberwise init private.
+    init(text: String = "Demo Mode · these flights are samples with made-up times. Airport status, weather and live aircraft are real.") {
+        self.text = text
+    }
 
     /// Same rule as `SettingsStore.provider`: an empty key means Demo Mode
     /// even with the toggle off.

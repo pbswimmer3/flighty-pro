@@ -68,7 +68,12 @@ struct PassportMapView: View {
                 .annotationTitles(.hidden)
             }
         }
-        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+        .mapStyle(.standard(elevation: .flat,
+                            emphasis: .muted,
+                            pointsOfInterest: .excludingAll,
+                            showsTraffic: false))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Map of \(stats.airports.count) airports and \(stats.routes.count) routes you've flown")
         .onAppear { camera = .automatic }
     }
 }
@@ -83,10 +88,10 @@ struct PassportMapCard: View {
 
             PassportMapView(stats: stats)
                 .frame(height: 240)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(alignment: .bottomTrailing) {
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusInner, style: .continuous))
+                .overlay(alignment: .topTrailing) {
                     Text("Line weight = how often you fly it")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .scaledFont(11, weight: .semibold)
                         .foregroundStyle(Theme.textSecondary)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
@@ -102,7 +107,7 @@ struct PassportMapCard: View {
 
             if !stats.unresolvedAirports.isEmpty {
                 Text("Not on the map: \(stats.unresolvedAirports.joined(separator: ", ")) — outside the bundled airport database, so their distance isn't counted either.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
                     .foregroundStyle(Theme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }

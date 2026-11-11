@@ -19,6 +19,8 @@ struct PassportView: View {
         return NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 14) {
+                    DemoBanner(text: "Demo Mode · this Passport includes sample flights. Add your own and the numbers are yours.")
+
                     if scopes.count > 1 {
                         ScopePicker(scopes: scopes, selection: $scope)
                             .padding(.top, 2)
@@ -108,8 +110,9 @@ struct PassportView: View {
                 HStack {
                     SectionHeader(title: "Delay Tracker", systemImage: "clock.badge.exclamationmark")
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(12, weight: .bold, design: .default)
                         .foregroundStyle(Theme.textTertiary)
+                        .accessibilityHidden(true)
                 }
 
                 HStack(spacing: 0) {
@@ -134,27 +137,28 @@ struct PassportView: View {
                             .foregroundStyle(Theme.red)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Worst delay: \(Fmt.duration(TimeInterval(worst.minutes) * 60))")
-                                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                .scaledFont(14, weight: .heavy)
                                 .foregroundStyle(Theme.textPrimary)
                             Text("\(worst.designator) · \(worst.route) · \(Fmt.fullDate(worst.date))")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .scaledFont(12, weight: .medium)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                         Spacer()
                     }
                 } else if delays.flightsCounted > 0 {
                     Text("Not one delayed arrival on record. Enjoy it while it lasts.")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .scaledFont(13, weight: .medium)
                         .foregroundStyle(Theme.green)
                 }
 
                 Text("Counted the way the US DOT does: an arrival \(Flight.delayThresholdMinutes)+ minutes behind schedule.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
                     .foregroundStyle(Theme.textTertiary)
             }
             .cardStyle()
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Opens the delay tracker")
     }
 
     // MARK: - Aircraft
@@ -168,19 +172,20 @@ struct PassportView: View {
                     ZStack {
                         Circle().fill(Theme.accent.opacity(0.18))
                         Image(systemName: "airplane")
-                            .font(.system(size: 22, weight: .bold))
+                            .scaledFont(22, weight: .bold, design: .default)
                             .foregroundStyle(Theme.accent)
                             .rotationEffect(.degrees(-45))
                     }
                     .frame(width: 56, height: 56)
+                    .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(top.label)
-                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .scaledFont(18, weight: .heavy)
                             .foregroundStyle(Theme.textPrimary)
                             .lineLimit(2)
                         Text("\(top.count) \(top.count == 1 ? "flight" : "flights") · \(Fmt.percent(Double(top.count) / Double(max(stats.flightCount, 1)))) of everything you've flown")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .scaledFont(12, weight: .medium)
                             .foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -206,13 +211,13 @@ struct PassportView: View {
                             value: "\(airframe.label) · \(airframe.count)×")
                     if let type = airframe.detail {
                         Text(type)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .scaledFont(11, weight: .medium)
                             .foregroundStyle(Theme.textTertiary)
                     }
                 }
             } else {
                 Text("No aircraft types recorded yet. They arrive automatically with live flight lookups.")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .scaledFont(13, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
             }
         }
@@ -251,7 +256,7 @@ struct PassportView: View {
             Divider().overlay(Theme.separator)
 
             Text("Departures by day of week")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .scaledFont(12, weight: .bold)
                 .foregroundStyle(Theme.textSecondary)
             WeekdayChart(histogram: stats.weekdayHistogram)
         }
@@ -282,7 +287,7 @@ struct PassportView: View {
                 InfoRow(label: "Top seat", value: "\(seat.label) · \(seat.count)×")
             } else {
                 Text("Add a seat on any flight page and your top seat shows up here.")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
                     .foregroundStyle(Theme.textTertiary)
             }
             if stats.totalMiles > 0 {
@@ -302,24 +307,26 @@ struct PassportView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 17, weight: .bold))
+                    .scaledFont(17, weight: .bold, design: .default)
                     .foregroundStyle(Theme.accent)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Past Flights")
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .scaledFont(15, weight: .heavy)
                         .foregroundStyle(Theme.textPrimary)
                     Text("\(stats.flightCount) flown. Flights move here automatically 30 minutes after landing.")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .scaledFont(13, weight: .medium)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
+                    .scaledFont(13, weight: .bold, design: .default)
                     .foregroundStyle(Theme.textTertiary)
+                    .accessibilityHidden(true)
             }
+            .frame(minHeight: 44)
             .cardStyle()
         }
         .buttonStyle(.plain)
@@ -328,25 +335,15 @@ struct PassportView: View {
     // MARK: - Empty
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "book.closed.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(Theme.accent)
-                .padding(.top, 70)
-            Text("Your Passport is empty")
-                .font(.system(size: 22, weight: .heavy, design: .rounded))
+        ContentUnavailableView {
+            Label("Your Passport is empty", systemImage: "book.closed.fill")
+        } description: {
             Text("Every flight you take gets folded in here automatically once it lands — distance, hours in the air, airports, airlines, aircraft and every minute you've lost to delays.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
+        } actions: {
             if scope != .allTime {
                 Button("Show all time") { scope = .allTime }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding()
+        .padding(.top, 40)
     }
 }

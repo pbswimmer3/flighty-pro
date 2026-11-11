@@ -17,6 +17,7 @@ struct FlightDetailView: View {
     @State private var forecast: ArrivalForecast?
     @State private var isBuildingForecast = false
     @State private var seatDraft = ""
+    @State private var confirmRemove = false
     /// Owned here so the map header, the tracking screen and the traffic view
     /// all read the same live track — and so the poll is cancelled when this
     /// page is popped, not when it's merely covered by a pushed view.
@@ -31,8 +32,9 @@ struct FlightDetailView: View {
             if let flight {
                 content(flight)
             } else {
-                Text("Flight removed")
-                    .foregroundStyle(Theme.textSecondary)
+                ContentUnavailableView("Flight removed",
+                                       systemImage: "airplane.circle",
+                                       description: Text("It was deleted from your list."))
             }
         }
         .background(Theme.background)
@@ -69,6 +71,37 @@ struct FlightDetailView: View {
             rebuildForecast(flight)
         }
         .onDisappear { commitSeat(flight) }
+        // Removing used to be a long-press on the card only — undiscoverable,
+        // and the flight page itself had no actions at all.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        Task {
+                            await store.refresh(flight)
+                            await loadIntel(flight)
+                        }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    Button(role: .destructive) {
+                        confirmRemove = true
+                    } label: {
+                        Label("Remove Flight", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .accessibilityLabel("Flight actions")
+                }
+            }
+        }
+        .confirmationDialog("Remove \(flight.displayNumber)?",
+                            isPresented: $confirmRemove,
+                            titleVisibility: .visible) {
+            Button("Remove Flight", role: .destructive) { store.remove(flight) }
+        } message: {
+            Text("It leaves your Passport too — every stat is computed from your flights.")
+        }
     }
 
     // MARK: - Map header → tracking
@@ -86,21 +119,25 @@ struct FlightDetailView: View {
 
                 HStack(spacing: 6) {
                     Image(systemName: "dot.radiowaves.up.forward")
-                        .font(.system(size: 11, weight: .bold))
+                        .scaledFont(11, weight: .bold, design: .default)
                     Text(trackingPrompt(flight))
-                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .scaledFont(12, weight: .heavy)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+                        .scaledFont(11, weight: .bold, design: .default)
                 }
-                .foregroundStyle(.white)
+                // Accent on near-black, like the map's "Estimated position"
+                // badge: white on solid accent was ~3.3:1.
+                .foregroundStyle(Theme.accent)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Theme.accent.opacity(0.92), in: Capsule())
+                .background(.black.opacity(0.72), in: Capsule())
                 .padding(12)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(trackingPrompt(flight))
+        .accessibilityHint("Opens the live map")
     }
 
     /// Names the airport the tracking map will actually open on — the same
@@ -126,14 +163,14 @@ struct FlightDetailView: View {
                 .addingTimeInterval(-Double(AeroDataBoxProvider.liveWindowDays) * 86_400)
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 15, weight: .bold))
+                    .scaledFont(15, weight: .bold, design: .default)
                     .foregroundStyle(Theme.orange)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Projected schedule")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .scaledFont(14, weight: .bold)
                     Text("The live feed doesn't reach this date yet, so these are \(flight.displayNumber)'s times from \(Fmt.dayAndDate(reference, tz: zone)). The real schedule replaces them the first time the app is open from about \(Fmt.dayAndDate(confirms, tz: zone)), with an alert if the times moved.")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .scaledFont(12, weight: .medium)
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -153,7 +190,7 @@ struct FlightDetailView: View {
             HStack(spacing: 10) {
                 ProgressView()
                 Text("Building arrival forecast from the last \(DelayObservation.analysisWindowDays) days…")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .scaledFont(13, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
             }
             .cardStyle()
@@ -170,14 +207,14 @@ struct FlightDetailView: View {
                 ForEach(signals) { signal in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: signal.icon)
-                            .font(.system(size: 15, weight: .bold))
+                            .scaledFont(15, weight: .bold, design: .default)
                             .foregroundStyle(signal.color)
                             .frame(width: 24)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(signal.title)
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .scaledFont(14, weight: .bold)
                             Text(signal.detail)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .scaledFont(12, weight: .medium)
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -196,6 +233,11 @@ struct FlightDetailView: View {
             ForEach(timelineEntries(flight), id: \.title) { entry in
                 timelineRow(entry)
             }
+            Text("~ worked out from the schedule — boarding, gate-close and bag times aren't published by the airline.")
+                .scaledFont(11, weight: .medium)
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.top, 8)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .cardStyle()
     }
@@ -274,17 +316,28 @@ struct FlightDetailView: View {
         HStack(spacing: 12) {
             Image(systemName: entry.done ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(entry.done ? Theme.green : entry.highlight ? Theme.accent : Theme.textTertiary)
+                .accessibilityHidden(true)
             Text(entry.title)
-                .font(.system(size: 14, weight: entry.highlight ? .heavy : .semibold, design: .rounded))
+                .scaledFont(14, weight: entry.highlight ? .heavy : .semibold)
                 .foregroundStyle(entry.done || entry.highlight ? Theme.textPrimary : Theme.textSecondary)
             Spacer()
             // A tilde is the whole disclosure: boarding, gate-close and bag
             // times are worked out from the schedule, not published by anyone.
             Text(entry.isEstimated ? "~\(entry.time)" : entry.time)
-                .font(Theme.monoFont(13))
+                .scaledFont(13, weight: .semibold, design: .monospaced)
+                .monospacedDigit()
                 .foregroundStyle(Theme.textSecondary)
         }
         .padding(.vertical, 7)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(spokenText(for: entry))
+    }
+
+    /// "~" is read aloud as "tilde", so VoiceOver gets "about" instead.
+    private func spokenText(for entry: TimelineEntry) -> String {
+        let about = entry.isEstimated ? "about " : ""
+        let done = entry.done ? ", done" : ""
+        return "\(entry.title), \(about)\(entry.time)\(done)"
     }
 
     // MARK: Departure / arrival cards
@@ -300,9 +353,9 @@ struct FlightDetailView: View {
             SectionHeader(title: isDeparture ? "Departure" : "Arrival",
                           systemImage: isDeparture ? "airplane.departure" : "airplane.arrival")
             HStack(alignment: .firstTextBaseline) {
-                Text(iata).font(Theme.codeFont(28))
+                Text(iata).scaledFont(28, weight: .heavy)
                 Text(airport?.name ?? "")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .scaledFont(13, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
             }
@@ -341,14 +394,14 @@ struct FlightDetailView: View {
                         .foregroundStyle(inbound.isDelayed ? Theme.orange : Theme.green)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(inbound.flightNumber) from \(inbound.originIATA)")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .scaledFont(14, weight: .bold)
                         Text(inboundDetail(inbound, flight: flight))
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .scaledFont(12, weight: .medium)
                             .foregroundStyle(Theme.textSecondary)
                     }
                     Spacer()
                     if inbound.isDelayed {
-                        StatusPill(text: "+\(inbound.delayMinutes)m", color: Theme.orange)
+                        StatusPill(text: "+\(inbound.delayMinutes) min", color: Theme.orange)
                     } else {
                         StatusPill(text: "On Time", color: Theme.green)
                     }
@@ -387,14 +440,15 @@ struct FlightDetailView: View {
             // "top seat" stat is only as good as what gets typed here.
             HStack {
                 Text("Seat")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .scaledFont(14, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
                 TextField("Add", text: $seatDraft)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .scaledFont(15, weight: .bold)
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+                    .submitLabel(.done)
                     .frame(width: 90)
                     .onSubmit { commitSeat(flight) }
             }
@@ -432,23 +486,25 @@ struct FlightDetailView: View {
 
     private func weatherRow(iata: String, metar: Metar) -> some View {
         HStack(spacing: 12) {
-            Text(iata).font(Theme.codeFont(18))
+            Text(iata).scaledFont(18, weight: .heavy)
             VStack(alignment: .leading, spacing: 2) {
                 Text(metar.conditionsSummary ?? "Wind \(metar.windDescription)")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .scaledFont(13, weight: .bold)
                 Text("Vis \(metar.visibilityDescription) · Ceiling \(metar.ceilingDescription)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             if let t = metar.tempF {
-                Text("\(t)°")
-                    .font(Theme.codeFont(20))
+                Text("\(t)°F")
+                    .scaledFont(20, weight: .heavy)
+                    .monospacedDigit()
             }
             if let cat = metar.fltCat {
                 StatusPill(text: cat, color: metar.flightCategoryColor)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Data loading

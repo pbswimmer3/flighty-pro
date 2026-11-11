@@ -84,22 +84,26 @@ struct FlightTrackingMapView: View {
     /// without polling on every fix.
     private var recenterThresholdNM: Double { Double(scope.radiusNM) / 3 }
 
-    init(flight: Flight, tracker: AircraftTracker) {
+    /// `initialScope` overrides the airborne/ground choice below; `nil` (the
+    /// default, and what the flight page passes) keeps that choice. It exists
+    /// so the screenshot harness can open on the whole route.
+    init(flight: Flight, tracker: AircraftTracker, initialScope: Scope? = nil) {
         self.flight = flight
         self.tracker = tracker
 
         // Airborne opens on the wider picture; on the ground the interesting
         // detail is the apron you're sitting on.
-        let initialScope: Scope = flight.effectivePhase.isAirborne ? .nearby : .ground
-        _scope = State(initialValue: initialScope)
-        _cameraDistance = State(initialValue: initialScope.cameraDistance)
+        let startScope: Scope = initialScope
+            ?? (flight.effectivePhase.isAirborne ? .nearby : .ground)
+        _scope = State(initialValue: startScope)
+        _cameraDistance = State(initialValue: startScope.cameraDistance)
 
         let anchor = tracker.track?.report.coordinate
             ?? Self.parkedAirport(for: flight)?.coordinate
             ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
         _queryCenter = State(initialValue: anchor)
         _camera = State(initialValue: .camera(MapCamera(centerCoordinate: anchor,
-                                                        distance: initialScope.cameraDistance,
+                                                        distance: startScope.cameraDistance,
                                                         heading: 0,
                                                         pitch: 0)))
     }
@@ -224,6 +228,10 @@ struct FlightTrackingMapView: View {
             .onMapCameraChange(frequency: .onEnd) { context in
                 cameraDistance = context.camera.distance
             }
+            // Every aircraft is drawn in a Canvas VoiceOver can't see; speak
+            // the same summary the pill and the card show instead.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Live map. \(statusText). \(ownSummary)")
         }
         .overlay(alignment: .top) { topBar }
         .overlay(alignment: .bottomTrailing) { controls }
@@ -613,11 +621,13 @@ struct FlightTrackingMapView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .scaledFont(11, weight: .bold)
+            .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.black.opacity(0.65), in: Capsule())
+            .accessibilityElement(children: .combine)
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
@@ -651,35 +661,42 @@ struct FlightTrackingMapView: View {
         case .noCoverage:
             return "No ADS-B coverage here"
         case .failed(let message):
-            return message
+            // The rate-limit text says when it retries and is worth showing;
+            // "adsb.lol returned HTTP 503" is not something to put in front
+            // of a traveller.
+            return message.localizedCaseInsensitiveContains("retrying")
+                ? message : "Live traffic unavailable right now"
         }
     }
 
     private var controls: some View {
         VStack(spacing: 10) {
             controlButton(isFollowing ? "location.fill" : "location",
+                          label: isFollowing ? "Stop following" : "Follow aircraft",
                           tint: isFollowing ? Theme.accent : Theme.textSecondary) {
                 isFollowing.toggle()
                 if isFollowing { applyCamera(animated: true) }
             }
-            controlButton("plus.magnifyingglass") { zoom(by: 0.5) }
-            controlButton("minus.magnifyingglass") { zoom(by: 2.0) }
+            controlButton("plus.magnifyingglass", label: "Zoom in") { zoom(by: 0.5) }
+            controlButton("minus.magnifyingglass", label: "Zoom out") { zoom(by: 2.0) }
         }
         .padding(.trailing, 12)
         .padding(.bottom, selectedTrack == nil ? 184 : 274)
     }
 
     private func controlButton(_ systemName: String,
+                               label: String,
                                tint: Color = Theme.textPrimary,
                                action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
+                .scaledFont(15, weight: .bold, design: .default)
                 .foregroundStyle(tint)
-                .frame(width: 38, height: 38)
+                .frame(width: 44, height: 44)
                 .background(.black.opacity(0.65), in: Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     // MARK: - Bottom panel
@@ -702,26 +719,27 @@ struct FlightTrackingMapView: View {
         let report = track.report
         return HStack(spacing: 12) {
             Image(systemName: report.onGround ? "airplane" : "airplane.circle.fill")
-                .font(.system(size: 18, weight: .bold))
+                .scaledFont(18, weight: .bold, design: .default)
                 .foregroundStyle(report.onGround ? Theme.cyan : Theme.accent)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(report.label)
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .scaledFont(15, weight: .heavy)
                     if let type = report.icaoType {
                         Text(type)
-                            .font(Theme.monoFont(10, weight: .medium))
+                            .scaledFont(11, weight: .medium, design: .monospaced)
                             .foregroundStyle(Theme.textTertiary)
                     }
                     if report.isMLAT {
                         Text("MLAT")
-                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .scaledFont(11, weight: .heavy)
                             .foregroundStyle(Theme.orange)
                     }
                 }
                 routeLine(for: report)
                 Text(detailLine(track))
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -729,10 +747,13 @@ struct FlightTrackingMapView: View {
                 withAnimation(.easeInOut(duration: 0.15)) { selectedHex = nil }
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
+                    .scaledFont(18, design: .default)
                     .foregroundStyle(Theme.textTertiary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -751,26 +772,26 @@ struct FlightTrackingMapView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(label.headline)
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                        .scaledFont(13, weight: .heavy)
                         .foregroundStyle(Theme.accent)
                     if let airline = route.airlineName {
                         Text(airline)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .scaledFont(11, weight: .medium)
                             .foregroundStyle(Theme.textTertiary)
                             .lineLimit(1)
                     }
                 }
                 Text(label.note)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
                     .foregroundStyle(label.contradictsSchedule ? Theme.orange : Theme.textTertiary)
             }
         } else if routes.isLoading(report.callsign) {
             Text("Looking up route…")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .scaledFont(11, weight: .medium)
                 .foregroundStyle(Theme.textTertiary)
         } else if routes.isUnknown(report.callsign) {
             Text("Route unknown")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .scaledFont(11, weight: .medium)
                 .foregroundStyle(Theme.textTertiary)
         }
     }
@@ -819,15 +840,16 @@ struct FlightTrackingMapView: View {
     private var ownAircraftCard: some View {
         HStack(spacing: 12) {
             Image(systemName: "airplane")
-                .font(.system(size: 16, weight: .bold))
+                .scaledFont(16, weight: .bold, design: .default)
                 .foregroundStyle(.white)
                 .rotationEffect(.degrees(-45))
             VStack(alignment: .leading, spacing: 2) {
                 Text(flight.displayNumber + " · " + flight.originIATA + " → " + flight.destinationIATA)
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .scaledFont(14, weight: .heavy)
                     .foregroundStyle(Theme.textPrimary)
                 Text(ownSummary)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -849,6 +871,9 @@ struct FlightTrackingMapView: View {
             }
             if let speed = track.report.groundSpeedKts { parts.append("\(Int(speed)) kt") }
         } else {
+            // A sample or hand-entered flight has no airframe to find, so the
+            // real traffic around it is around a plane that isn't there.
+            if !flight.isLiveData { parts.append("Not a live flight — placed from the schedule") }
             parts.append("\(Int(flight.progress(at: .now) * 100))% of the way")
             parts.append("lands \(Fmt.relative(flight.bestArrival))")
         }

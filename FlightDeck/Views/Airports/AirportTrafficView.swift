@@ -76,7 +76,8 @@ struct AirportTrafficView: View {
                               systemImage: scope == .ground ? "airplane.departure" : "airplane")
                 if scope == .ground, parkedCount > 0 {
                     Text("\(parkedCount) parked")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .scaledFont(11, weight: .bold)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textTertiary)
                 }
             }
@@ -113,27 +114,28 @@ struct AirportTrafficView: View {
         let report = track.report
         return HStack(spacing: 12) {
             Image(systemName: report.onGround ? "airplane" : "airplane.circle.fill")
-                .font(.system(size: 15, weight: .bold))
+                .scaledFont(15, weight: .bold, design: .default)
                 .foregroundStyle(report.onGround ? Theme.cyan : Theme.accent)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(report.label)
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                        .scaledFont(14, weight: .heavy)
                     if let type = report.icaoType {
                         Text(type)
-                            .font(Theme.monoFont(10, weight: .medium))
+                            .scaledFont(11, weight: .medium, design: .monospaced)
                             .foregroundStyle(Theme.textTertiary)
                     }
                     if report.isMLAT {
                         Text("MLAT")
-                            .font(.system(size: 8, weight: .heavy, design: .rounded))
+                            .scaledFont(11, weight: .heavy)
                             .foregroundStyle(Theme.orange)
                     }
                 }
                 Text(subtitle(report))
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .scaledFont(11, weight: .medium)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textSecondary)
             }
 
@@ -141,12 +143,14 @@ struct AirportTrafficView: View {
 
             if let speed = report.groundSpeedKts {
                 Text("\(Int(speed)) kt")
-                    .font(Theme.monoFont(13))
+                    .scaledFont(13, weight: .semibold, design: .monospaced)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textPrimary)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
+        .accessibilityElement(children: .combine)
     }
 
     private func subtitle(_ report: TrafficReport) -> String {
@@ -158,7 +162,7 @@ struct AirportTrafficView: View {
             parts.append("\(altitude) ft")
         }
         if let accuracy = report.accuracyMetres {
-            parts.append("±\(Int(accuracy)) m")
+            parts.append("±\(Int(accuracy)) m accuracy")
         }
         return parts.joined(separator: " · ")
     }
@@ -166,14 +170,15 @@ struct AirportTrafficView: View {
     private var emptyState: some View {
         VStack(spacing: 6) {
             Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                .font(.system(size: 22))
+                .scaledFont(22, design: .default)
                 .foregroundStyle(Theme.textTertiary)
+                .accessibilityHidden(true)
             Text(scope == .ground
                  ? "Nothing moving on the surface"
                  : "No aircraft in range")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .scaledFont(14, weight: .bold)
             Text("Coverage comes from volunteer ADS-B receivers, so some airports — especially smaller or non-US fields — have gaps or no surface coverage at all.")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .scaledFont(11, weight: .medium)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -183,7 +188,7 @@ struct AirportTrafficView: View {
 
     private var disclaimer: some View {
         Text("Positions are estimates projected forward from the last ADS-B report. Not an air-traffic-control tool — never use it for separation or navigation.")
-            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .scaledFont(11, weight: .medium)
             .foregroundStyle(Theme.textTertiary)
             .multilineTextAlignment(.leading)
             .padding(16)

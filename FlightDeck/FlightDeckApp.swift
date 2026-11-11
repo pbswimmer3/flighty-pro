@@ -8,6 +8,7 @@ struct FlightDeckApp: App {
     @StateObject private var notifications = NotificationService.shared
 
     init() {
+        ScreenshotMode.prepare()
         let settings = SettingsStore()
         let history = DelayHistoryStore()
         _settings = StateObject(wrappedValue: settings)
@@ -38,6 +39,7 @@ struct FlightDeckApp: App {
     }
 
     private func syncAlerts() async {
+        guard !ScreenshotMode.isActive else { return }
         await notifications.refreshAuthorization()
         flightStore.refreshNotificationSchedule()
     }

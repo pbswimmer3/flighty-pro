@@ -67,3 +67,64 @@ workflows:
           xcodebuild build -project FlightDeck.xcodeproj -scheme FlightDeck \
             -destination 'generic/platform=iOS' -configuration Release \
             CODE_SIGNING_ALLOWED=NO | xcpretty || exit ${PIPESTATUS[0]}
+
+  # Manual / API start only (scripts/capture_screens.py). Boots a Pro Max
+  # simulator and captures one PNG per scene using the -FDScreenshot launch
+  # argument (FlightDeck/Utilities/ScreenshotMode.swift).
+  screenshots:
+    name: Store screenshots (simulator)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: latest
+      vars:
+        BUNDLE_ID: com.personal.flightdeck
+        SCENES: "flights detail tracking passport airports connection settings"
+    scripts:
+      - name: Build for simulator
+        script: |
+          xcodebuild build -project FlightDeck.xcodeproj -scheme FlightDeck \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO | xcpretty || exit ${PIPESTATUS[0]}
+      - name: Boot newest Pro Max simulator
+        script: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          data = json.load(sys.stdin)["devices"]
+          best = None
+          for runtime, devs in data.items():
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not m: continue
+              ver = (int(m.group(1)), int(m.group(2)))
+              for d in devs:
+                  if re.match(r"iPhone \d+ Pro Max$", d["name"]):
+                      n = int(re.search(r"iPhone (\d+)", d["name"]).group(1))
+                      key = (ver, n)
+                      if best is None or key > best[0]:
+                          best = (key, d["udid"], d["name"])
+          if not best: sys.exit("no Pro Max simulator")
+          print(best[1])
+          ')
+          [ -n "$UDID" ] || { echo "no simulator found"; exit 1; }
+          echo "UDID=$UDID" > sim.env
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar booted override --time 9:41 --batteryState charged \
+            --batteryLevel 100 --cellularBars 4 --wifiBars 3 --dataNetwork wifi
+          APP=$(find build/Build/Products -name 'FlightDeck.app' -path '*iphonesimulator*' | head -1)
+          xcrun simctl install booted "$APP"
+          # The app never asks for location (no CLLocationManager), so nothing to grant.
+      - name: Capture scenes
+        script: |
+          mkdir -p screenshots
+          for scene in $SCENES; do
+            wait=10
+            case "$scene" in tracking|airports) wait=15 ;; esac
+            xcrun simctl terminate booted "$BUNDLE_ID" || true
+            xcrun simctl launch booted "$BUNDLE_ID" -FDScreenshot "$scene" || { echo "launch failed: $scene"; continue; }
+            sleep $wait
+            xcrun simctl io booted screenshot "screenshots/$scene.png" || echo "screenshot failed: $scene"
+          done
+          ls -l screenshots
+    artifacts:
+      - screenshots/*.png

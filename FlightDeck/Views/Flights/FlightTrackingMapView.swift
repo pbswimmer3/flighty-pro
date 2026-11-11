@@ -685,7 +685,7 @@ struct FlightTrackingMapView: View {
                     }
                 }
                 routeLine(for: report)
-                Text(detailLine(report))
+                Text(detailLine(track))
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -740,7 +740,8 @@ struct FlightTrackingMapView: View {
         }
     }
 
-    private func detailLine(_ report: TrafficReport) -> String {
+    private func detailLine(_ track: TrafficStore.Track) -> String {
+        let report = track.report
         var parts: [String] = []
         if report.onGround {
             parts.append(report.isStationary ? "Parked" : "Taxiing")
@@ -748,11 +749,36 @@ struct FlightTrackingMapView: View {
             parts.append("\(Fmt.grouped(altitude)) ft")
         }
         if let speed = report.groundSpeedKts { parts.append("\(Int(speed)) kt") }
-        if let distance = report.distanceNM { parts.append(String(format: "%.1f nm away", distance)) }
+        if let distance = distanceText(to: track) { parts.append(distance) }
         if let registration = report.registration, registration != report.label {
             parts.append(registration)
         }
         return parts.isEmpty ? "Live ADS-B contact" : parts.joined(separator: " · ")
+    }
+
+    /// How far the contact is from the user's aircraft, or — with no aircraft
+    /// to measure from — from the airport the map is parked on. Both ends are
+    /// the positions drawn on screen, so the number matches what you see.
+    ///
+    /// Deliberately not adsb.lol's `dst`. That's measured from the search
+    /// centre, which follows the aircraft only in jumps of up to a third of
+    /// the radius (`recenterThresholdNM`): it read "12.1 nm away" for a
+    /// Cessna about 7 nm from the user's own aircraft, on the card the user
+    /// was reading while asking whether the map was right (#14).
+    private func distanceText(to track: TrafficStore.Track) -> String? {
+        let now = Date.now
+        let contact = track.state(at: now).coordinate
+        if let own = ownPosition(at: now) {
+            return "\(Self.nauticalMiles(from: own.coordinate, to: contact)) nm from \(flight.displayNumber)"
+        }
+        if let parked = parkedAirport {
+            return "\(Self.nauticalMiles(from: parked.coordinate, to: contact)) nm from \(parked.iata)"
+        }
+        return track.report.distanceNM.map { String(format: "%.1f nm away", $0) }
+    }
+
+    private static func nauticalMiles(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> String {
+        String(format: "%.1f", GreatCircle.distanceMiles(from: a, to: b) / 1.15078)
     }
 
     private var ownAircraftCard: some View {

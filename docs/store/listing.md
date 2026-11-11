@@ -186,9 +186,9 @@ TestFlight fields that are not text blocks:
 
 | Field | Answer |
 | --- | --- |
-| Feedback email | **OWNER:** `<<OWNER: feedback email>>` |
+| Feedback email | **OWNER:** `entered in App Store Connect (kept out of this public repo)` |
 | Marketing URL (optional) | leave empty |
-| Privacy Policy URL | **OWNER:** the hosted `docs/privacy-policy.md` (required for external testing). Must match the link in Settings, today `https://pbswimmer3.github.io/flighty-pro/privacy` |
+| Privacy Policy URL | https://pbswimmer3.github.io/flight-dash/privacy/ (hosted from github.com/pbswimmer3/flight-dash; same link as Settings) |
 | Beta App Review contact | see `review-notes.md` |
 | Sign-in required | No |
 
@@ -221,7 +221,7 @@ Expected result: **4+**.
 ## Copyright
 
 ```text
-2026 <<OWNER: your name or company, as it should appear on the App Store>>
+2026 Pradyun Biswas
 ```
 
 Apple adds the © sign.
@@ -230,8 +230,8 @@ Apple adds the © sign.
 
 | Field | Status |
 | --- | --- |
-| Support URL (required) | **OWNER:** host `docs/store/support.md` publicly (GitHub Pages is cheapest) and fill in its contact email |
-| Privacy Policy URL (required) | **OWNER:** host `docs/privacy-policy.md`. `SettingsView` links `https://pbswimmer3.github.io/flighty-pro/privacy` (marked `TODO(owner)`); make that page exist or change the constant, then paste the same URL here |
+| Support URL (required) | https://pbswimmer3.github.io/flight-dash/ (support page; contact is the GitHub issues link) |
+| Privacy Policy URL (required) | https://pbswimmer3.github.io/flight-dash/privacy/ |
 | Marketing URL (optional) | leave empty, or a one-page site; `docs/store/share-image.png` (1200 × 630) is its link preview |
 
 ## Screenshots

@@ -55,4 +55,4 @@ Done. `FlightDeck/PrivacyInfo.xcprivacy` is in the project (commit `4bda8a2`; th
 
 ## Privacy policy
 
-`docs/privacy-policy.md` exists. **OWNER:** host it publicly and paste the URL into App Store Connect (App Information → Privacy Policy URL, and TestFlight → Test Information). Settings links `https://pbswimmer3.github.io/flighty-pro/privacy` (marked `TODO(owner)` in `SettingsView.swift`); make that page exist or change the constant so the two match.
+`docs/privacy-policy.md` is hosted at https://pbswimmer3.github.io/flight-dash/privacy/ (from github.com/pbswimmer3/flight-dash). The same URL is in Settings and goes into App Store Connect (App Information → Privacy Policy URL, and TestFlight → Test Information).

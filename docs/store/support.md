@@ -2,8 +2,7 @@
 
 ## Contact
 
-- Email: <<OWNER: support email>>
-- Bug reports: <<OWNER: GitHub issues link, if the repo is public>>
+- Bug reports: [open an issue](https://github.com/pbswimmer3/flight-dash/issues)
 - TestFlight testers: take a screenshot in the app and choose **Send Beta Feedback**.
 
 ## Getting started
@@ -47,7 +46,7 @@ It is stored on this device, in the app's preferences, and is only sent to AeroD
 No. Flight Dash is an iPhone app (iOS 17 or later) with no widgets or Watch app.
 
 **Does it collect my data?**
-No. There is no account, no server, no analytics and no ads, and the app never asks for your location. See the privacy policy: <<OWNER: privacy policy URL>>.
+No. There is no account, no server, no analytics and no ads, and the app never asks for your location. See the privacy policy: https://pbswimmer3.github.io/flight-dash/privacy/.
 
 ## Safety
 

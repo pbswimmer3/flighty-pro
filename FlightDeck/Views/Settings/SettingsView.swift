@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State private var confirmClearHistory = false
     @State private var didSendTest = false
 
-    private let privacyPolicyURL = URL(string: "https://pbswimmer3.github.io/flighty-pro/privacy")! // TODO(owner): confirm hosted URL
+    private let privacyPolicyURL = URL(string: "https://pbswimmer3.github.io/flight-dash/privacy/")! // hosted from github.com/pbswimmer3/flight-dash (GitHub Pages)
 
     private var statusText: String {
         settings.demoMode ? "Demo Mode"

@@ -1,6 +1,6 @@
 # Flight Dash: App Review and TestFlight Beta Review notes
 
-Everything the reviewers are asked for, in paste order. Checked against the code at HEAD of `claude/app-store-prep` on 2026-11-11. Fill every `<<OWNER: …>>` before pasting. If the store name changes, replace "Flight Dash" in the blocks below.
+Everything the reviewers are asked for, in paste order. Checked against the code at HEAD of `claude/app-store-prep` on 2026-11-11. Contact details are entered straight into App Store Connect and kept out of this public repo. If the store name changes, replace "Flight Dash" in the blocks below.
 
 ## 1. App Review notes
 
@@ -36,7 +36,7 @@ Aircraft positions are estimates. The app says it is not an air-traffic-control 
 THIRD-PARTY CONTENT
 Airport list from mwgg/Airports under the MIT License; the notice is in Settings > Acknowledgements with the data sources. Airlines appear as plain text and two-letter monograms, no logos. The app is not affiliated with any airline or data provider.
 
-Contact: <<OWNER: first and last name>>, <<OWNER: email>>, <<OWNER: phone with country code>>
+Contact: entered in App Store Connect (kept out of this public repo)
 ```
 
 Count: **3159 / 4000 bytes**
@@ -45,10 +45,10 @@ Count: **3159 / 4000 bytes**
 
 | Field | Value |
 | --- | --- |
-| First name | `<<OWNER: first name>>` |
-| Last name | `<<OWNER: last name>>` |
-| Phone | `<<OWNER: phone, with country code>>` |
-| Email | `<<OWNER: email>>` |
+| First name | Pradyun |
+| Last name | Biswas |
+| Phone | entered in App Store Connect (kept out of this public repo) |
+| Email | entered in App Store Connect (kept out of this public repo) |
 | Sign-in required | No |
 
 ## 3. TestFlight: Test Information
@@ -93,9 +93,9 @@ Please report anything that says "HTTP", any blank screen, and any time shown in
 
 | TestFlight field | Value |
 | --- | --- |
-| Feedback email | `<<OWNER: feedback email>>` |
+| Feedback email | entered in App Store Connect (kept out of this public repo) |
 | Marketing URL | leave empty |
-| Privacy Policy URL | `<<OWNER: hosted privacy policy URL>>` (required for external testing; must match the link in Settings) |
+| Privacy Policy URL | https://pbswimmer3.github.io/flight-dash/privacy/ (matches the link in Settings) |
 | Beta App Review contact: first name, last name, phone, email | same as section 2 |
 | Sign-in required | No |
 | Beta App Review notes | paste the App Review notes block from section 1 |

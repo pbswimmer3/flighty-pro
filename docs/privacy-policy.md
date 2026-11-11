@@ -39,6 +39,5 @@ If this policy changes, the effective date above will change with it.
 
 ## Contact
 
-Questions or requests: open an issue at https://github.com/pbswimmer3/flighty-pro/issues
+Questions or requests: open an issue at https://github.com/pbswimmer3/flight-dash/issues
 
-<!-- owner: confirm contact -->

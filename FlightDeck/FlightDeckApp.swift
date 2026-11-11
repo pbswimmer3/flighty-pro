@@ -13,7 +13,9 @@ struct FlightDeckApp: App {
         let history = DelayHistoryStore()
         _settings = StateObject(wrappedValue: settings)
         _delayHistory = StateObject(wrappedValue: history)
-        _flightStore = StateObject(wrappedValue: FlightStore(settings: settings, history: history))
+        let store = FlightStore(settings: settings, history: history)
+        ScreenshotMode.seed(store)
+        _flightStore = StateObject(wrappedValue: store)
     }
 
     @Environment(\.scenePhase) private var scenePhase

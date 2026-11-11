@@ -12,7 +12,7 @@ import SwiftUI
 enum ScreenshotMode {
 
     enum Scene: String, CaseIterable {
-        case flights, detail, tracking, passport, airports, connection, settings
+        case flights, detail, tracking, passport, airports, airportTraffic, delays, connection, settings
         // `forecast` is deliberately absent: FlightDetailView has no scroll
         // anchor for the forecast card, and adding one means editing a view.
 
@@ -23,7 +23,7 @@ enum ScreenshotMode {
             case .passport: 1
             case .connection: 3
             case .settings: 4
-            case .detail, .tracking, .airports: nil
+            case .detail, .tracking, .airports, .airportTraffic, .delays: nil
             }
         }
     }
@@ -36,6 +36,16 @@ enum ScreenshotMode {
     }()
 
     static var isActive: Bool { scene != nil }
+
+    /// Scenes that read the Passport stats get ~10 extra past flights.
+    static var seedsPastFlights: Bool { scene == .passport || scene == .delays }
+
+    /// Call right after the store is built. In-memory only, screenshot mode only.
+    @MainActor
+    static func seed(_ store: FlightStore) {
+        guard seedsPastFlights else { return }
+        store.seedScreenshotFlights(DemoFlightProvider.screenshotPastFlights())
+    }
 
     /// Call once at startup, before the stores are built.
     static func prepare() {
@@ -62,6 +72,10 @@ struct ScreenshotRoot: View {
                 if let f = inAir { TrackingScene(flight: f) }
             case .airports:
                 if let a = AirportDatabase.shared.airport(iata: "JFK") { AirportDetailView(airport: a) }
+            case .airportTraffic:
+                if let a = AirportDatabase.shared.airport(iata: "JFK") { AirportTrafficView(airport: a) }
+            case .delays:
+                DelayTrackerView(stats: store.passport())
             default:
                 EmptyView()
             }
@@ -74,7 +88,7 @@ private struct TrackingScene: View {
     @StateObject private var tracker = AircraftTracker()
 
     var body: some View {
-        FlightTrackingMapView(flight: flight, tracker: tracker)
+        FlightTrackingMapView(flight: flight, tracker: tracker, initialScope: .route)
             .onAppear { if let cs = flight.callSign { tracker.start(callSign: cs) } }
     }
 }

@@ -248,6 +248,15 @@ final class FlightStore: ObservableObject {
 
     // MARK: - Passport
 
+    /// Screenshot harness only (see `ScreenshotMode`): adds flights in memory,
+    /// skipping any already present. Deliberately not persisted.
+    func seedScreenshotFlights(_ seeds: [Flight]) {
+        let have = Set(flights.map(\.id))
+        flights += seeds.filter { !have.contains($0.id) }
+        sort()
+        recordCompletedFlights()
+    }
+
     func passport(scope: PassportStats.Scope = .allTime) -> PassportStats {
         PassportStats.build(from: flights, scope: scope, now: clock)
     }

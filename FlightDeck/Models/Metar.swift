@@ -64,7 +64,7 @@ struct Metar: Codable, Identifiable {
         if let first = clouds?.first?.cover?.uppercased(), ["CLR", "SKC", "CAVOK"].contains(first) {
             return "Clear"
         }
-        return "None"
+        return "Unlimited"
     }
 
     var flightCategoryColor: Color {

@@ -27,8 +27,10 @@ struct AirportsView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    }
+                    if query.isEmpty {
                         SectionHeader(title: "Featured Airports", systemImage: "globe.americas.fill")
-                            .padding(.top, 10)
+                            .padding(.top, favorites.isEmpty ? 4 : 10)
                     }
                     ForEach(results) { airport in
                         NavigationLink(value: airport) {
@@ -36,6 +38,9 @@ struct AirportsView: View {
                                        eventCount: eventCounts[airport.iata] ?? 0)
                         }
                         .buttonStyle(.plain)
+                    }
+                    if results.isEmpty && !query.isEmpty {
+                        ContentUnavailableView.search(text: query)
                     }
                 }
                 .padding(.horizontal)
@@ -65,17 +70,18 @@ struct AirportRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Text(airport.iata)
-                .font(Theme.codeFont(20))
+                .scaledFont(20, weight: .heavy)
                 .frame(width: 62, height: 44)
                 .background(Theme.cardElevated)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusChip, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(airport.name)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .scaledFont(15, weight: .bold)
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Text("\(airport.city), \(airport.country) · \(airport.localTimeString())")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -83,9 +89,11 @@ struct AirportRow: View {
                 StatusPill(text: "\(eventCount) alert\(eventCount > 1 ? "s" : "")", color: Theme.orange)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
+                .scaledFont(12, weight: .bold, design: .default)
                 .foregroundStyle(Theme.textTertiary)
+                .accessibilityHidden(true)
         }
         .cardStyle(padding: 12)
+        .accessibilityElement(children: .combine)
     }
 }

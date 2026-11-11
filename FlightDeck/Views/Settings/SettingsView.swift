@@ -10,6 +10,29 @@ struct SettingsView: View {
     @State private var confirmClearHistory = false
     @State private var didSendTest = false
 
+    private let privacyPolicyURL = URL(string: "https://pbswimmer3.github.io/flighty-pro/privacy")! // TODO(owner): confirm hosted URL
+
+    private var statusText: String {
+        settings.demoMode ? "Demo Mode"
+            : (settings.aeroDataBoxKey.isEmpty ? "Demo Mode (no key yet)" : "Live — AeroDataBox")
+    }
+
+    private var dataSourceFooter: String {
+        if settings.demoMode {
+            return "Demo Mode generates sample flights with no setup. Turn it off and add an AeroDataBox key below to track real flights."
+        } else if settings.aeroDataBoxKey.isEmpty {
+            return "Demo Mode stays on until an AeroDataBox key is added below."
+        } else {
+            return "Live lookups are on. Flights you add by number come from AeroDataBox."
+        }
+    }
+
+    private var appVersion: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return "\(short) (\(build))"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -17,10 +40,11 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("Demo Mode", isOn: $settings.demoMode)
+                    LabeledContent("Status") { Text(statusText) }
                 } header: {
                     Text("Data Source")
                 } footer: {
-                    Text("Demo Mode generates realistic flights with no setup. Turn it off and add an AeroDataBox key below to track real flights.")
+                    Text(dataSourceFooter)
                 }
 
                 Section {
@@ -34,15 +58,18 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent("Observations stored",
-                                   value: "\(history.observations.count)")
-                    LabeledContent("Analysis window",
-                                   value: "\(DelayObservation.analysisWindowDays) days")
+                    LabeledContent("Flights on record") {
+                        Text("\(history.observations.count)").monospacedDigit()
+                    }
+                    LabeledContent("Looks back") {
+                        Text("\(DelayObservation.analysisWindowDays) days").monospacedDigit()
+                    }
                     Button(role: .destructive) {
                         confirmClearHistory = true
                     } label: {
                         Label("Clear Punctuality History", systemImage: "chart.bar.xaxis")
                     }
+                    .accessibilityHint("Cannot be undone")
                 } header: {
                     Text("Arrival forecast")
                 } footer: {
@@ -55,19 +82,36 @@ struct SettingsView: View {
                     } label: {
                         Label("Remove All Flights", systemImage: "trash")
                     }
+                    .accessibilityHint("Cannot be undone")
                 }
 
                 Section {
-                    LabeledContent("Flights tracked", value: "\(store.flights.count)")
-                    LabeledContent("Flights flown", value: "\(store.passport().flightCount)")
-                    LabeledContent("Airport database", value: "\(AirportDatabase.shared.resolvableCount.formatted()) airports")
-                    LabeledContent("Version", value: "1.1")
+                    LabeledContent("Flights tracked") {
+                        Text("\(store.flights.count)").monospacedDigit()
+                    }
+                    LabeledContent("Flights flown") {
+                        Text("\(store.passport().flightCount)").monospacedDigit()
+                    }
+                    LabeledContent("Airport database") {
+                        Text("\(AirportDatabase.shared.resolvableCount.formatted()) airports").monospacedDigit()
+                    }
+                    LabeledContent("Version") { Text(appVersion).monospacedDigit() }
+                    Link(destination: privacyPolicyURL) {
+                        Label("Privacy Policy", systemImage: "hand.raised.fill")
+                    }
+                    NavigationLink {
+                        AcknowledgementsView()
+                    } label: {
+                        Label("Acknowledgements", systemImage: "heart.text.square")
+                    }
                 } header: {
                     Text("About")
                 } footer: {
-                    Text("FlightDeck is a personal-use flight tracker inspired by the look and feel of Flighty. Data: FAA NAS Status, NOAA/NWS aviationweather.gov, adsb.lol, and optionally AeroDataBox. Not affiliated with Flighty LLC or any airline.")
+                    Text("FlightDeck is an independent flight tracker. It has no account and no server; your flights stay on this device. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, and flight schedules from AeroDataBox when you add a key. Positions on maps are estimates — this is not an air-traffic-control tool and must never be used for navigation or separation. Not affiliated with any airline or data provider.")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
             .navigationTitle("Settings")
             .confirmationDialog("Remove all tracked flights?",
                                 isPresented: $confirmClear,
@@ -137,8 +181,9 @@ struct SettingsView: View {
                             }
                     }
 
-                    LabeledContent("Alerts queued with iOS",
-                                   value: "\(notifications.scheduledCount)")
+                    LabeledContent("Scheduled alerts") {
+                        Text("\(notifications.scheduledCount)").monospacedDigit()
+                    }
 
                     Button {
                         Task {

@@ -37,7 +37,7 @@ final class SettingsStore: ObservableObject {
             ? true
             : defaults.bool(forKey: "demoMode")
         aeroDataBoxKey = defaults.string(forKey: "aeroDataBoxKey") ?? ""
-        favoriteAirports = defaults.stringArray(forKey: "favoriteAirports") ?? ["SFO", "JFK", "LHR"]
+        favoriteAirports = defaults.stringArray(forKey: "favoriteAirports") ?? []
         notifications = defaults.data(forKey: "notificationPreferences")
             .flatMap { try? JSONDecoder().decode(NotificationPreferences.self, from: $0) }
             ?? NotificationPreferences()

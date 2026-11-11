@@ -238,3 +238,27 @@ major hubs.
 <div align="center">
 <sub>Screenshots are from the iOS Simulator in Demo Mode.</sub>
 </div>
+
+## App Store
+
+Store assets for FlightDeck: screenshot cards (built from simulator captures), listing copy, and review material.
+
+<div align="center">
+<img src="docs/store/screenshots/6.9/01-your-flight-live.png" width="15%">
+<img src="docs/store/screenshots/6.9/02-every-flight-one-glance.png" width="15%">
+<img src="docs/store/screenshots/6.9/03-who-is-around-you.png" width="15%">
+<img src="docs/store/screenshots/6.9/04-will-you-make-it.png" width="15%">
+<img src="docs/store/screenshots/6.9/05-passport.png" width="15%">
+<img src="docs/store/screenshots/6.9/06-airport-status.png" width="15%">
+</div>
+
+| What | Where |
+|---|---|
+| Listing copy and character limits | [docs/store/listing.md](docs/store/listing.md) |
+| App Review notes | [docs/store/review-notes.md](docs/store/review-notes.md) |
+| App Privacy answers | [docs/store/app-privacy-answers.md](docs/store/app-privacy-answers.md) |
+| Support page text | [docs/store/support.md](docs/store/support.md) |
+| Privacy policy | [docs/privacy-policy.md](docs/privacy-policy.md) |
+| UI review | [docs/ui-review.md](docs/ui-review.md) |
+| Store strategy and card spec | [docs/store/store-review.md](docs/store/store-review.md) |
+| Regenerate | `python scripts/capture_screens.py` then `python scripts/make_store_cards.py` then `python scripts/check_listing.py` |

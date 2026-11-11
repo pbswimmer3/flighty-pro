@@ -7,7 +7,8 @@ import CoreLocation
 /// replacing them.
 ///
 /// Rendering reads `state(at:)` at display rate — polling faster would burn
-/// battery and rate limit without making anything smoother.
+/// battery and rate limit without making anything smoother. Every request
+/// goes through `AdsbClient`, which shares one adsb.lol budget across the app.
 @MainActor
 final class TrafficStore: ObservableObject {
 
@@ -136,9 +137,8 @@ final class TrafficStore: ObservableObject {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                await self.poll()
-                let wait = self.currentInterval
-                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                let wait = await self.poll()
+                try? await Task.sleep(nanoseconds: UInt64(max(wait, 1) * 1_000_000_000))
             }
         }
     }
@@ -158,18 +158,31 @@ final class TrafficStore: ObservableObject {
 
     // MARK: - Polling
 
-    private func poll() async {
-        guard let center else { return }
+    /// One request; returns how long to sleep before the next. The request
+    /// itself may first wait for a slot in the app-wide budget
+    /// (`AdsbClient`), which is what actually bounds the rate — the interval
+    /// is only this screen's ceiling.
+    private func poll() async -> TimeInterval {
+        let interval = currentInterval
+        guard let center else { return interval }
         do {
             let reports = try await TrafficService.shared.traffic(near: center, radiusNM: radiusNM)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return interval }
             merge(reports, at: .now)
             lastUpdate = .now
             status = tracks.isEmpty ? .noCoverage : .live(count: tracks.count)
+            return interval
+        } catch AdsbClient.Failure.rateLimited(until: let until) {
+            guard !Task.isCancelled else { return interval }
+            // Keep showing what we have, and sleep through the block: the
+            // client would refuse anything sooner anyway.
+            status = .failed(AdsbClient.Failure.rateLimited(until: until).localizedDescription)
+            return max(interval, until.timeIntervalSinceNow)
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return interval }
             // Keep showing what we have — a dropped poll shouldn't clear the map.
             status = .failed(error.localizedDescription)
+            return interval
         }
     }
 

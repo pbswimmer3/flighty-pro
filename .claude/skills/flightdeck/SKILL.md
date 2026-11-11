@@ -78,7 +78,7 @@ Tabs: **Flights · Passport · Airports · Connection · Settings**.
 |---|---|---|
 | `DemoFlightProvider` | none | Demo Mode — flights generated relative to *now* |
 | AeroDataBox (RapidAPI) | yes | Real schedules and status |
-| adsb.lol | none | Live aircraft positions, radius traffic search |
+| adsb.lol | none | Live aircraft positions, radius traffic search — 500 requests/day per address, all through `AdsbClient` |
 | adsbdb.com | none | Callsign → route + airline (`FlightRouteService`) |
 | FAA NAS Status | none | Ground stops / delay programs (US only) |
 | aviationweather.gov | none | METAR |
@@ -220,7 +220,10 @@ Two lifetime rules that are easy to break:
   tracking map makes it disappear, and stopping there kills the live track at
   the exact moment the user asked to watch it. The tracker is a
   `@StateObject` on `FlightDetailView`; its `deinit` cancels the poll when the
-  page is popped, which is the lifetime we want.
+  page is popped, which is the lifetime we want. What both maps *do* call is
+  `tracker.setVisible(_:on:)`: the loop idles only when no screen shows the
+  aircraft (the flight page left open in another tab), and wakes with an
+  immediate poll when one comes back.
 - **Everything that moves is drawn in one `Canvas` on a `TimelineView`
   display clock**, not as per-aircraft MapKit annotations. Thirty annotations
   updating every frame thrashes; one overlay doesn't. Positions come from
@@ -230,6 +233,29 @@ Two lifetime rules that are easy to break:
 Because the traffic canvas sets `allowsHitTesting(false)` so gestures reach the
 map, tap-to-identify is done manually: `MapReader` → `proxy.convert` → nearest
 track within 28 pt. Both maps do this identically.
+
+**adsb.lol is a daily budget, not a firehose.** Responses carry
+`x-ratelimit-limit: 500, 500;w=86400`: 500 requests per client address per UTC
+day, `/v2/callsign` and `/v2/lat/…/dist` drawing down the same
+`x-ratelimit-remaining`. The tracking map used to poll both every 3–5 s
+(24–32 a minute: the day gone in ~20 minutes, TestFlight #12/#14), and nothing
+slowed down on a 429. Now:
+
+- **Every adsb.lol request goes through `AdsbClient`** — never call
+  `URLSession` on api.adsb.lol anywhere else. It spaces requests ≥10 s apart
+  (bursts of 3), stretches the gap so what's left lasts ≥2 h, and on a 429
+  blocks everything until `Retry-After` (else 30 s doubling, capped at 15 min
+  because landing swaps in-flight Wi-Fi for a fresh address). While blocked
+  it throws `.rateLimited(until:)` with no request; pollers sleep to `until`,
+  they don't retry at their own interval.
+- Screen intervals are ceilings, not rates: 10 s (Route 30 s), tracker 15 s.
+  Don't shorten them for smoothness — dead reckoning does that.
+- **The tracking map feeds your own aircraft from its radius search**
+  (`AircraftTracker.ingest`), so the by-callsign request runs only when
+  nothing has supplied a fix for `feedGrace`.
+- A contact's distance on the tracking map is measured from your aircraft
+  (or the parked airport), never adsb.lol's `dst`, which is from a search
+  centre that lags the aircraft by up to a third of the radius.
 
 **Labels are earned by a tap, never drawn by default.** Printing a callsign
 over every contact turned a busy field into a wall of text, and a callsign on

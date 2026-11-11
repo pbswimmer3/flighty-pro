@@ -39,7 +39,14 @@ struct FlightMapView: View {
                 }
             }
         }
-        .onAppear { startTracking() }
+        .onAppear {
+            tracker.setVisible(true, on: "routeMap")
+            startTracking()
+        }
+        // Not `tracker.stop()` — see the note below. This only tells the
+        // tracker nobody is looking here, so it stops spending adsb.lol
+        // requests while the flight page sits in another tab.
+        .onDisappear { tracker.setVisible(false, on: "routeMap") }
         .onChange(of: flight.id) { _, _ in startTracking() }
         .onChange(of: scenePhase) { _, phase in
             phase == .active ? startTracking() : tracker.stop()
@@ -57,7 +64,9 @@ struct FlightMapView: View {
     // poll there would drop the live track exactly when the user asked to
     // watch it. The tracker is owned by `FlightDetailView` as a `@StateObject`,
     // so it's cancelled in `deinit` when the flight page is popped — which is
-    // the lifetime we actually want.
+    // the lifetime we actually want. `setVisible` is the safe half of that:
+    // the tracking map reports in as it appears, so the loop keeps running,
+    // and it only idles when no screen shows the aircraft at all.
 
     /// Live position is only worth polling for a real flight that's actually
     /// flying — demo flights have no airframe to find.
@@ -66,7 +75,7 @@ struct FlightMapView: View {
             tracker.stop()
             return
         }
-        tracker.start(callSign: callSign, interval: 5)
+        tracker.start(callSign: callSign)
     }
 
     @ViewBuilder

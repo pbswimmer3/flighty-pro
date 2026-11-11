@@ -12,31 +12,24 @@ actor AdsbService {
     /// not before: airborne aircraft report `track`, aircraft on the ground
     /// report `true_heading`, and reading only the former made taxiing planes
     /// lose their rotation.
-    func report(callSign: String) async -> TrafficReport? {
+    ///
+    /// Throws (`AdsbClient.Failure`) when the request itself failed. That used
+    /// to come back as `nil` too, so a 429 read as "aircraft out of coverage"
+    /// and the tracker polled straight through it.
+    func report(callSign: String) async throws -> TrafficReport? {
         let cs = callSign.trimmingCharacters(in: .whitespaces).uppercased()
         guard !cs.isEmpty,
               let encoded = cs.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://api.adsb.lol/v2/callsign/\(encoded)") else { return nil }
-        do {
-            let (data, _) = try await URLSession.shared.data(for: AdsbEndpoint.request(url))
-            let decoded = try JSONDecoder().decode(AdsbResponse.self, from: data)
-            // Newest fix wins if the callsign somehow matches two airframes.
-            return decoded.aircraft
-                .compactMap { $0.report() }
-                .min { $0.fixAge < $1.fixAge }
-        } catch {
-            return nil
-        }
-    }
-}
 
-/// Shared request construction for the adsb.lol endpoints.
-enum AdsbEndpoint {
-    static func request(_ url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
-        // Positions go stale in seconds — a cached response is worse than none.
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = 12
-        return request
+        let data = try await AdsbClient.shared.data(from: url)
+        let received = Date.now
+        guard let decoded = try? JSONDecoder().decode(AdsbResponse.self, from: data) else {
+            throw AdsbClient.Failure.badResponse
+        }
+        // Newest fix wins if the callsign somehow matches two airframes.
+        return decoded.aircraft
+            .compactMap { $0.report(receivedAt: received) }
+            .min { $0.fixAge < $1.fixAge }
     }
 }

@@ -40,7 +40,7 @@ struct LiveTrafficMapView: View {
          center: CLLocationCoordinate2D,
          radiusNM: Int = 10,
          spanMetres: CLLocationDistance = 14_000,
-         pollInterval: TimeInterval = 5,
+         pollInterval: TimeInterval = 10,
          surface: Surface = .satellite,
          groundOnly: Bool = false,
          highlightHex: String? = nil,

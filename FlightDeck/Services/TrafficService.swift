@@ -10,44 +10,25 @@ import CoreLocation
 actor TrafficService {
     static let shared = TrafficService()
 
-    enum TrafficError: LocalizedError {
-        case badURL
-        case http(Int)
-        case transport(String)
-
-        var errorDescription: String? {
-            switch self {
-            case .badURL: return "Bad request"
-            case .http(let code): return code == 429
-                ? "Rate limited by adsb.lol — backing off"
-                : "adsb.lol returned HTTP \(code)"
-            case .transport(let message): return message
-            }
-        }
-    }
-
     /// All aircraft within `radiusNM` of a point. adsb.lol caps the radius at
     /// 250 nm; we clamp rather than let the server reject the call.
+    ///
+    /// Goes through `AdsbClient`, so it may wait for a slot in the shared
+    /// request budget, and it throws `AdsbClient.Failure` — `.rateLimited`
+    /// above all, which callers must sleep through rather than retry.
     func traffic(near center: CLLocationCoordinate2D, radiusNM: Int) async throws -> [TrafficReport] {
         let radius = min(max(radiusNM, 1), 250)
         let path = String(format: "https://api.adsb.lol/v2/lat/%.5f/lon/%.5f/dist/%d",
                           center.latitude, center.longitude, radius)
-        guard let url = URL(string: path) else { throw TrafficError.badURL }
+        guard let url = URL(string: path) else { throw AdsbClient.Failure.badRequest }
 
+        let data = try await AdsbClient.shared.data(from: url)
+        let received = Date.now
         do {
-            let (data, response) = try await URLSession.shared.data(for: AdsbEndpoint.request(url))
-            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                throw TrafficError.http(http.statusCode)
-            }
-            let received = Date.now
             let decoded = try JSONDecoder().decode(AdsbResponse.self, from: data)
             return decoded.aircraft.compactMap { $0.report(receivedAt: received) }
-        } catch let error as TrafficError {
-            throw error
-        } catch is DecodingError {
-            throw TrafficError.transport("Unexpected response from adsb.lol")
         } catch {
-            throw TrafficError.transport(error.localizedDescription)
+            throw AdsbClient.Failure.badResponse
         }
     }
 }

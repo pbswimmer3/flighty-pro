@@ -14,11 +14,13 @@ struct AirportTrafficView: View {
 
         var id: String { rawValue }
 
-        /// Ground gets a tighter poll: taxi movements are slow but the queue
-        /// order is what people are watching, and it changes on the minute.
         var radiusNM: Int { self == .ground ? 3 : 25 }
         var spanMetres: CLLocationDistance { self == .ground ? 6_000 : 70_000 }
-        var pollInterval: TimeInterval { self == .ground ? 3 : 5 }
+        /// Ten seconds for both. Ground used to poll every 3 s for the taxi
+        /// queue, but queue order changes over minutes, not seconds, and 3 s
+        /// spent a fifth of the app's daily adsb.lol quota (see `AdsbClient`)
+        /// in five minutes of watching an apron.
+        var pollInterval: TimeInterval { 10 }
     }
 
     @State private var scope: Scope = .ground

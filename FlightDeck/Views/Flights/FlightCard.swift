@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The signature Flighty-style flight card: airline badge + flight number,
+/// The signature flight card: airline badge + flight number,
 /// huge airport codes, live progress bar, status pill and delay-aware times.
 struct FlightCard: View {
     let flight: Flight
@@ -21,6 +21,11 @@ struct FlightCard: View {
             }
         }
         .cardStyle()
+        // One VoiceOver stop per card, read as a sentence. Read child by
+        // child it came out as "9:53 PM 10:18 PM San Francisco", and the
+        // strikethrough that says which time is stale means nothing aloud.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilitySummary)
     }
 
     private var showsStageBar: Bool {
@@ -35,9 +40,10 @@ struct FlightCard: View {
             AirlineBadge(code: flight.airlineCode, size: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text(flight.displayNumber)
-                    .font(Theme.monoFont(15))
+                    .scaledFont(15, weight: .semibold, design: .monospaced)
+                    .monospacedDigit()
                 Text(flight.airlineName)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .scaledFont(12, weight: .medium)
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -48,20 +54,22 @@ struct FlightCard: View {
     private var routeRow: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(flight.originIATA)
-                .font(Theme.codeFont(34))
+                .scaledFont(34, weight: .heavy)
             Image(systemName: "arrow.right")
-                .font(.system(size: 16, weight: .heavy))
+                .scaledFont(16, weight: .heavy, design: .default)
                 .foregroundStyle(Theme.textTertiary)
             Text(flight.destinationIATA)
-                .font(Theme.codeFont(34))
+                .scaledFont(34, weight: .heavy)
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(Fmt.dayAndDate(flight.scheduledDeparture,
                                     tz: AirportDatabase.shared.airport(iata: flight.originIATA)?.timeZone))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textSecondary)
                 Text(Fmt.duration(flight.duration))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .scaledFont(12, weight: .semibold)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.textTertiary)
             }
         }
@@ -89,25 +97,27 @@ struct FlightCard: View {
 
     private func timeColumn(label: String, scheduled: Date, best: Date,
                             iata: String, alignment: HorizontalAlignment) -> some View {
-        let changed = abs(best.timeIntervalSince(scheduled)) > 5 * 60
+        let changed = isChanged(scheduled: scheduled, best: best)
         return VStack(alignment: alignment, spacing: 2) {
             HStack(spacing: 5) {
                 if changed {
                     Text(Fmt.time(scheduled, airportIATA: iata))
                         .strikethrough()
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .scaledFont(12, weight: .medium)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.textTertiary)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
                 Text(Fmt.time(best, airportIATA: iata))
-                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .scaledFont(16, weight: .heavy)
+                    .monospacedDigit()
                     .foregroundStyle(changed ? Theme.orange : Theme.textPrimary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
             Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .scaledFont(11, weight: .medium)
                 .foregroundStyle(Theme.textTertiary)
         }
     }
@@ -127,7 +137,7 @@ struct FlightCard: View {
         case .diverted: return ("Diverted", Theme.red)
         case .airborne, .landingSoon, .taxiingOut:
             return flight.arrivalDelayMinutes > 10
-                ? ("Late \(flight.arrivalDelayMinutes)m", Theme.orange)
+                ? ("Late \(flight.arrivalDelayMinutes) min", Theme.orange)
                 : (stage.label, Theme.accent)
         case .taxiingIn, .atGate, .arrived: return ("Arrived", Theme.green)
         case .boarding, .gateClosing: return (stage.label, Theme.purple)
@@ -136,7 +146,7 @@ struct FlightCard: View {
             // claim nobody has made yet.
             if flight.isScheduleProjected { return ("Projected", Theme.textSecondary) }
             return flight.isDelayed
-                ? ("Delayed \(flight.departureDelayMinutes)m", Theme.orange)
+                ? ("Delayed \(flight.departureDelayMinutes) min", Theme.orange)
                 : ("On Time", Theme.green)
         }
     }
@@ -151,5 +161,56 @@ struct FlightCard: View {
 
     private func cityName(_ iata: String) -> String {
         AirportDatabase.shared.airport(iata: iata)?.city ?? iata
+    }
+
+    /// Same five-minute rule the time columns use to strike the old time
+    /// through, so the spoken "originally …" matches what's drawn.
+    private func isChanged(scheduled: Date, best: Date) -> Bool {
+        abs(best.timeIntervalSince(scheduled)) > 5 * 60
+    }
+
+    // MARK: Accessibility
+
+    /// "DL 482, Delta Air Lines, San Francisco to New York, Late 14 min,
+    /// departs 10:18 PM, originally 9:53 PM, arrives 6:25 AM, Lands in 3h 7m".
+    /// Built from the same values the card draws, so the two can't disagree.
+    private var accessibilitySummary: String {
+        let now = Date.now
+        var parts: [String] = [
+            flight.displayNumber,
+            flight.airlineName,
+            "\(cityName(flight.originIATA)) to \(cityName(flight.destinationIATA))",
+            statusInfo.0,
+            spokenTime("departs", scheduled: flight.scheduledDeparture,
+                       best: flight.bestDeparture, iata: flight.originIATA),
+            spokenTime("arrives", scheduled: flight.scheduledArrival,
+                       best: flight.bestArrival, iata: flight.destinationIATA),
+        ]
+        if showsStageBar {
+            parts.append(stageHeadline(flight.stage(at: now), at: now))
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private func spokenTime(_ verb: String, scheduled: Date, best: Date, iata: String) -> String {
+        let text = "\(verb) \(Fmt.time(best, airportIATA: iata))"
+        guard isChanged(scheduled: scheduled, best: best) else { return text }
+        return text + ", originally \(Fmt.time(scheduled, airportIATA: iata))"
+    }
+
+    /// Mirrors `FlightStageBar.headline`, which is private to that view. Kept
+    /// in step by hand: it's six cases, and sharing it would mean editing the
+    /// stage bar for an accessibility label.
+    private func stageHeadline(_ stage: FlightStage, at now: Date) -> String {
+        guard let next = flight.nextMilestone(at: now) else { return stage.label }
+        let countdown = Fmt.countdown(to: next.date, from: now)
+        switch next.kind {
+        case .checkIn:   return "Check-in opens in \(countdown)"
+        case .boarding:  return "Boards in \(countdown)"
+        case .gateClose: return "Gate closes in \(countdown)"
+        case .departure: return stage == .taxiingOut ? "Taxiing" : "Departs in \(countdown)"
+        case .landing:   return "Lands in \(countdown)"
+        case .bags:      return stage == .arrived ? stage.label : "Bags in \(countdown)"
+        }
     }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Home tab: the user's live flights in Flighty-style sections.
+/// Home tab: the user's live flights, in Today / Upcoming sections.
 ///
 /// Only flights that haven't been archived yet appear here — a flight retires
 /// itself 30 minutes after landing and moves to the Passport's Past Flights
@@ -9,6 +9,12 @@ struct MyFlightsView: View {
     @EnvironmentObject private var store: FlightStore
     @State private var showingAdd = false
 
+    /// A fresh install opens on a sample trip. Without a word of explanation
+    /// that reads as somebody else's real flights, so the first launch says
+    /// what they are — once.
+    @AppStorage("hasSeenWelcome") private var hasSeenWelcome = false
+    @State private var showingWelcome = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -16,12 +22,19 @@ struct MyFlightsView: View {
                     if store.flights.isEmpty {
                         emptyState
                     } else {
+                        DemoBanner()
+
                         section("Today", flights: store.todayFlights, icon: "sun.max.fill")
                         section("Upcoming", flights: store.upcomingFlights, icon: "calendar")
 
                         if store.todayFlights.isEmpty && store.upcomingFlights.isEmpty {
                             allClearState
                         }
+
+                        // Renders nothing once alerts are decided or the
+                        // card was dismissed, so no padding of its own here.
+                        AlertsPromptCard()
+
                         pastFlightsLink
                     }
                 }
@@ -38,6 +51,7 @@ struct MyFlightsView: View {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
                     }
+                    .accessibilityLabel("Add Flight")
                 }
             }
             .sheet(isPresented: $showingAdd) {
@@ -49,6 +63,18 @@ struct MyFlightsView: View {
             .navigationDestination(for: Flight.self) { flight in
                 FlightDetailView(flightID: flight.id)
             }
+        }
+        // Never in screenshot mode: the store captures must open on the
+        // flights, not on a sheet covering them.
+        .onAppear {
+            if !hasSeenWelcome && !ScreenshotMode.isActive {
+                showingWelcome = true
+            }
+        }
+        // Marked seen on any dismissal — the button or a swipe down — so it
+        // can't come back on the next launch.
+        .sheet(isPresented: $showingWelcome, onDismiss: { hasSeenWelcome = true }) {
+            WelcomeView()
         }
     }
 
@@ -76,20 +102,19 @@ struct MyFlightsView: View {
     /// Shown once every tracked flight has been archived — better than an
     /// empty screen that looks like the app lost the user's data.
     private var allClearState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Theme.green)
-                .padding(.top, 40)
-            Text("Nothing in the air")
-                .font(.system(size: 19, weight: .heavy, design: .rounded))
+        ContentUnavailableView {
+            Label {
+                Text("Nothing in the air")
+            } icon: {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.green)
+            }
+        } description: {
             Text("All \(store.pastFlights.count) of your flights have landed. Add the next one whenever you're ready.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
+        } actions: {
+            addFlightButton
         }
-        .frame(maxWidth: .infinity)
-        .padding(.bottom, 10)
+        .padding(.top, 20)
     }
 
     /// A peek at the most recent completed flights, with the full log a tap
@@ -119,50 +144,58 @@ struct MyFlightsView: View {
             } label: {
                 HStack {
                     Text("All \(store.pastFlights.count) past flights")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .scaledFont(14, weight: .bold)
+                        .monospacedDigit()
                         .foregroundStyle(Theme.accent)
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .scaledFont(12, weight: .bold, design: .default)
                         .foregroundStyle(Theme.textTertiary)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, 4)
                 .padding(.vertical, 6)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "airplane.circle.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Theme.accent)
-                .padding(.top, 80)
-            Text("No flights yet")
-                .font(.system(size: 22, weight: .heavy, design: .rounded))
-            Text("Add a flight by number, or load a sample trip to explore the app.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-            Button {
-                showingAdd = true
-            } label: {
-                Label("Add Flight", systemImage: "plus")
-                    .font(.headline)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Theme.accent)
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
+        ContentUnavailableView {
+            Label {
+                Text("No flights yet")
+            } icon: {
+                Image(systemName: "airplane.circle.fill")
+                    .foregroundStyle(Theme.accent)
             }
+        } description: {
+            Text("Add a flight by number, or load a sample trip to explore the app.")
+        } actions: {
+            addFlightButton
             Button("Load Sample Trip") {
                 store.addSampleTrip()
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.accent)
+            .frame(minHeight: 44)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
+        .padding(.top, 60)
+    }
+
+    /// Black on the accent blue: white on it is ~3.3:1, black ~5.4:1.
+    private var addFlightButton: some View {
+        Button {
+            showingAdd = true
+        } label: {
+            Label("Add Flight", systemImage: "plus")
+                .font(.headline)
+                .padding(.horizontal, 20)
+                .frame(minHeight: 44)
+                .background(Theme.accent, in: Capsule())
+                .foregroundStyle(.black)
+        }
+        .buttonStyle(.plain)
     }
 }

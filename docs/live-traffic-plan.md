@@ -76,7 +76,7 @@ Each aircraft object carries: `hex`, `flight`, `r` (registration), `t` (type), `
 ### 2.2 Honest limitations
 
 - **Coverage is volunteer-fed.** adsb.lol depends on hobbyist receivers. Ground coverage at major hubs is good; smaller or non-US airports may have gaps or no surface coverage at all. The UI must degrade gracefully to "no traffic data here" rather than implying an empty sky.
-- **Rate limits are dynamic and undocumented**, and adsb.lol has stated an API key will be required in future. No `x-ratelimit` headers are returned today. Budget conservatively (§3.4) and expect to need a key eventually.
+- **Rate limits are dynamic and only partly documented**, and adsb.lol has stated an API key will be required in future. *Update, Nov 2026:* responses now carry `x-ratelimit-limit: 500, 500;w=86400` — 500 requests per client address per UTC day, shared by every endpoint, `x-ratelimit-reset` counting down to 00:00 UTC. `AdsbClient` paces against those headers and honours 429s; see §3.4.
 - **MLAT-derived positions are less accurate** than ADS-B. The `mlat` array lists which fields were multilaterated; treat those aircraft as lower confidence.
 - This is **not** an ATC-grade or safety tool and must never be framed as one.
 
@@ -163,11 +163,16 @@ The payoff feature. Camera locked to the airport, `dist=3` nm, ground traffic on
 
 | Context | Interval |
 |---|---|
-| Foreground, own flight airborne | 5 s |
-| Foreground, airport ground view | 3 s |
-| Foreground, no map visible | stop |
+| Tracking map, Ground / Nearby | 10 s — own aircraft comes from the same response |
+| Tracking map, Route | 30 s |
+| Flight page map (own aircraft by callsign) | 15 s |
+| Airport traffic view | 10 s |
+| Foreground, no map visible | stop (the tracker idles via `setVisible`) |
 | Background | stop entirely |
 | Low Power Mode | halve rate, drop render to 30 fps |
+| App-wide (`AdsbClient`) | ≥10 s between any two requests, stretched so the remaining daily quota lasts ≥2 h; nothing at all while a 429 is in force |
+
+These were 5 s and 3 s, with a second by-callsign poll on top; against a 500-a-day quota that lasted about twenty minutes.
 
 Rendering stays at display rate regardless — smoothness comes from extrapolation, *not* from polling faster. This is the whole point: **polling harder makes the app worse (battery, rate limits) and does not make motion smoother.**
 

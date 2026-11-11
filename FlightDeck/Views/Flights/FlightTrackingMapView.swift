@@ -31,8 +31,7 @@ struct FlightTrackingMapView: View {
         var id: String { rawValue }
 
         /// Radius of the ADS-B search. Ground is deliberately tight: at 5 nm
-        /// the response is small enough to poll quickly and every contact is
-        /// genuinely "around you".
+        /// the response is small and every contact is genuinely "around you".
         var radiusNM: Int {
             switch self {
             case .ground: return 5
@@ -41,7 +40,12 @@ struct FlightTrackingMapView: View {
             }
         }
 
-        var pollInterval: TimeInterval { self == .ground ? 3 : 5 }
+        /// This screen's ceiling; `AdsbClient` stretches it further as the
+        /// day's adsb.lol quota runs down. Ten seconds is plenty with dead
+        /// reckoning in between — it was 3 s and 5 s, which with the own-
+        /// aircraft poll on top spent the whole daily quota in ~20 minutes.
+        /// Route is a continental picture that barely moves at that zoom.
+        var pollInterval: TimeInterval { self == .route ? 30 : 10 }
 
         /// Camera altitude used when this scope is first entered.
         var cameraDistance: CLLocationDistance {
@@ -238,9 +242,13 @@ struct FlightTrackingMapView: View {
             // "48 on ground · just now" while the aircraft sat over Nebraska.
             queryCenter = anchorCoordinate()
             startPolling()
+            tracker.setVisible(true, on: "trackingMap")
             startTrackingOwnAircraft()
         }
-        .onDisappear { traffic.stop() }
+        .onDisappear {
+            traffic.stop()
+            tracker.setVisible(false, on: "trackingMap")
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 startPolling()
@@ -257,8 +265,8 @@ struct FlightTrackingMapView: View {
             startPolling()
         }
         // A new ADS-B fix is the natural cadence for both recentring and
-        // re-anchoring the radius search: roughly every five seconds, and never
-        // faster than the data actually changes.
+        // re-anchoring the radius search: every ten to fifteen seconds, and
+        // never faster than the data actually changes.
         .onChange(of: tracker.track?.measured.validAt) { _, _ in
             recenterIfDrifted()
             if isFollowing { applyCamera(animated: true) }
@@ -267,6 +275,7 @@ struct FlightTrackingMapView: View {
         // itself provides the cadence — the estimated position still moves, and
         // both the camera and the search radius have to move with it.
         .onChange(of: traffic.lastUpdate) { _, _ in
+            feedOwnAircraftFromTraffic()
             guard tracker.track == nil else { return }
             recenterIfDrifted()
             if isFollowing { applyCamera(animated: true) }
@@ -342,7 +351,33 @@ struct FlightTrackingMapView: View {
     /// coming back from the background, where it was deliberately stopped.
     private func startTrackingOwnAircraft() {
         guard flight.isLiveData, flight.isActive, let callSign = flight.callSign else { return }
-        tracker.start(callSign: callSign, interval: 5)
+        tracker.start(callSign: callSign)
+    }
+
+    /// The radius search is centred on the user's aircraft, so it nearly
+    /// always contains it. Handing that report to the tracker means the
+    /// separate by-callsign request is skipped — it used to double this
+    /// screen's adsb.lol traffic for the same data.
+    ///
+    /// Matched by hex once the tracker knows the airframe; by callsign only
+    /// before then, so another leg's aircraft sharing the flight number can't
+    /// take over a track that's already locked on.
+    private func feedOwnAircraftFromTraffic() {
+        guard flight.isLiveData, flight.isActive, let updated = traffic.lastUpdate else { return }
+        let candidate: TrafficStore.Track?
+        if let hex = tracker.track?.report.hex {
+            candidate = traffic.tracks.first { $0.report.hex == hex }
+        } else if let callSign = flight.callSign?.trimmingCharacters(in: .whitespaces).uppercased(),
+                  !callSign.isEmpty {
+            candidate = traffic.tracks.first { $0.report.callsign?.uppercased() == callSign }
+        } else {
+            candidate = nil
+        }
+        // Only if it was in *this* response: tracks linger a few seconds after
+        // they vanish, and a lingering one would keep the tracker from asking.
+        guard let own = candidate,
+              abs(own.lastReportAt.timeIntervalSince(updated)) < 1 else { return }
+        tracker.ingest(own.report)
     }
 
     /// Re-anchor the radius search on wherever the aircraft is now.
@@ -685,7 +720,7 @@ struct FlightTrackingMapView: View {
                     }
                 }
                 routeLine(for: report)
-                Text(detailLine(report))
+                Text(detailLine(track))
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -740,7 +775,8 @@ struct FlightTrackingMapView: View {
         }
     }
 
-    private func detailLine(_ report: TrafficReport) -> String {
+    private func detailLine(_ track: TrafficStore.Track) -> String {
+        let report = track.report
         var parts: [String] = []
         if report.onGround {
             parts.append(report.isStationary ? "Parked" : "Taxiing")
@@ -748,11 +784,36 @@ struct FlightTrackingMapView: View {
             parts.append("\(Fmt.grouped(altitude)) ft")
         }
         if let speed = report.groundSpeedKts { parts.append("\(Int(speed)) kt") }
-        if let distance = report.distanceNM { parts.append(String(format: "%.1f nm away", distance)) }
+        if let distance = distanceText(to: track) { parts.append(distance) }
         if let registration = report.registration, registration != report.label {
             parts.append(registration)
         }
         return parts.isEmpty ? "Live ADS-B contact" : parts.joined(separator: " · ")
+    }
+
+    /// How far the contact is from the user's aircraft, or — with no aircraft
+    /// to measure from — from the airport the map is parked on. Both ends are
+    /// the positions drawn on screen, so the number matches what you see.
+    ///
+    /// Deliberately not adsb.lol's `dst`. That's measured from the search
+    /// centre, which follows the aircraft only in jumps of up to a third of
+    /// the radius (`recenterThresholdNM`): it read "12.1 nm away" for a
+    /// Cessna about 7 nm from the user's own aircraft, on the card the user
+    /// was reading while asking whether the map was right (#14).
+    private func distanceText(to track: TrafficStore.Track) -> String? {
+        let now = Date.now
+        let contact = track.state(at: now).coordinate
+        if let own = ownPosition(at: now) {
+            return "\(Self.nauticalMiles(from: own.coordinate, to: contact)) nm from \(flight.displayNumber)"
+        }
+        if let parked = parkedAirport {
+            return "\(Self.nauticalMiles(from: parked.coordinate, to: contact)) nm from \(parked.iata)"
+        }
+        return track.report.distanceNM.map { String(format: "%.1f nm away", $0) }
+    }
+
+    private static func nauticalMiles(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> String {
+        String(format: "%.1f", GreatCircle.distanceMiles(from: a, to: b) / 1.15078)
     }
 
     private var ownAircraftCard: some View {

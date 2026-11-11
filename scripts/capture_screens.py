@@ -5,24 +5,34 @@
         --out docs/store/raw-before [--scenes "flights detail"]
 
 Token: env CODEMAGIC_API_TOKEN, else CODEMAGIC_API_TOKEN in
-~/.testflight-autofix/secrets.env. The token is never printed.
+~/.testflight-autofix/secrets.env, else ~/.secrets/flightdeck/codemagic_token.
+The token is never printed.
 """
 import argparse, io, json, os, sys, time, urllib.request, urllib.error, zipfile
 
 API = "https://api.codemagic.io"
 APP_ID = "6ae34ccdbaf52d7600f9b455"
 SECRETS = os.path.expanduser("~/.testflight-autofix/secrets.env")
+TOKEN_FILE = os.path.expanduser("~/.secrets/flightdeck/codemagic_token")
 
 
 def token():
     t = os.environ.get("CODEMAGIC_API_TOKEN")
     if t:
         return t.strip()
-    with open(SECRETS) as f:
-        for line in f:
-            if line.startswith("CODEMAGIC_API_TOKEN="):
-                return line.split("=", 1)[1].strip().strip("'\"")
-    sys.exit("CODEMAGIC_API_TOKEN not found")
+    if os.path.exists(SECRETS):
+        with open(SECRETS) as f:
+            for line in f:
+                if line.startswith("CODEMAGIC_API_TOKEN="):
+                    v = line.split("=", 1)[1].strip().strip("'\"")
+                    if v:
+                        return v
+    if os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE) as f:
+            v = f.read().strip()
+            if v:
+                return v
+    sys.exit("Codemagic token not found (env, secrets.env or ~/.secrets/flightdeck/codemagic_token)")
 
 
 TOKEN = None

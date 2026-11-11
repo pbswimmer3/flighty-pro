@@ -2,7 +2,7 @@
 """Run the Codemagic `screenshots` workflow and download the PNGs.
 
     python scripts/capture_screens.py --branch claude/app-store-prep \
-        --out docs/store/raw-before [--scenes "flights detail"]
+        --out docs/store/raw-before [--scenes "flights detail"] [--device 6.5]
 
 Token: env CODEMAGIC_API_TOKEN, else CODEMAGIC_API_TOKEN in
 ~/.testflight-autofix/secrets.env, else ~/.secrets/flightdeck/codemagic_token.
@@ -64,6 +64,7 @@ def main():
     ap.add_argument("--branch", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--scenes", default="")
+    ap.add_argument("--device", default="", help='"6.9" (default, newest Pro Max) or "6.5"')
     ap.add_argument("--build-id", help="skip starting; poll/download this build")
     a = ap.parse_args()
     TOKEN = token()
@@ -71,8 +72,13 @@ def main():
     build_id = a.build_id
     if not build_id:
         body = {"appId": APP_ID, "workflowId": "screenshots", "branch": a.branch}
+        variables = {}
         if a.scenes:
-            body["environment"] = {"variables": {"SCENES": a.scenes}}
+            variables["SCENES"] = a.scenes
+        if a.device:
+            variables["DEVICE"] = a.device
+        if variables:
+            body["environment"] = {"variables": variables}
         build_id = json.loads(call("POST", f"{API}/builds", body))["buildId"]
     print("build id:", build_id, flush=True)
 

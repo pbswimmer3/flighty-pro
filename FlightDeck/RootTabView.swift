@@ -34,6 +34,7 @@ struct RootTabView: View {
                 .tag(4)
         }
         .background(Theme.background)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }
 

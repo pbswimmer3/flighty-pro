@@ -31,18 +31,20 @@ struct FlightStageBar: View {
                 // checked-in-open, and a check-in glyph next to it looks like
                 // a bug.
                 Image(systemName: flight.nextMilestone(at: now)?.kind.systemImage ?? stage.systemImage)
-                    .font(.system(size: 11, weight: .bold))
+                    .scaledFont(11, weight: .bold, design: .default)
                 Text(headline(stage, at: now))
-                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                    .scaledFont(12, weight: .heavy)
+                    .monospacedDigit()
                 if let detail = detail(stage) {
                     Text("· \(detail)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .scaledFont(12, weight: .semibold)
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .foregroundStyle(stage.tint)
+            .accessibilityElement(children: .combine)
         } else {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: stage.systemImage)
@@ -50,29 +52,37 @@ struct FlightStageBar: View {
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(stage.label.uppercased())
-                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .scaledFont(11, weight: .heavy)
                         .kerning(1.1)
                         .opacity(0.75)
                     Text(headline(stage, at: now))
-                        .font(.system(size: 19, weight: .heavy, design: .rounded))
+                        .scaledFont(19, weight: .heavy)
+                        .monospacedDigit()
                     Text(subtitle(stage, at: now))
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .opacity(0.8)
+                        .scaledFont(13, weight: .medium)
+                        .foregroundStyle(Theme.textSecondary)
                 }
                 Spacer(minLength: 0)
                 if flight.isDelayed, flight.phase != .cancelled {
-                    Text("+\(max(flight.departureDelayMinutes, flight.arrivalDelayMinutes))m")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    Text("+\(max(flight.departureDelayMinutes, flight.arrivalDelayMinutes)) min")
+                        .scaledFont(13, weight: .heavy)
+                        .monospacedDigit()
                         .padding(.horizontal, 9)
                         .padding(.vertical, 4)
-                        .background(.white.opacity(0.22), in: Capsule())
+                        .background(bannerColor(stage).opacity(0.22), in: Capsule())
                 }
             }
-            .foregroundStyle(.white)
+            // Tinted panel, same grammar as `StatusPill`: coloured text on a
+            // faint fill of the same colour. White on the old solid fill was
+            // ~2:1 on orange.
+            .foregroundStyle(bannerColor(stage))
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(bannerColor(stage).opacity(0.85))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(bannerColor(stage).opacity(0.14))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
+                         .strokeBorder(bannerColor(stage).opacity(0.35), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+            .accessibilityElement(children: .combine)
         }
     }
 

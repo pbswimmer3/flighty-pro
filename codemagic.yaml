@@ -123,7 +123,7 @@ workflows:
           echo "UDID=$UDID" > sim.env
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl status_bar booted override --time 9:41 --batteryState charged \n            --batteryLevel 100 --cellularBars 4 --wifiBars 3 --dataNetwork wifi
+          xcrun simctl status_bar booted override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 --dataNetwork wifi
           APP=$(find build/Build/Products -name 'FlightDeck.app' -path '*iphonesimulator*' | head -1)
           xcrun simctl install booted "$APP"
           # Warm-up: launch and kill once, then wait, so first-boot system banners

@@ -1,4 +1,4 @@
-# FlightDeck: App Privacy answers
+# Flight Dash: App Privacy answers
 
 What to enter in App Store Connect → App Privacy. Checked against the code at HEAD of `claude/app-store-prep` on 2026-11-11.
 
@@ -51,7 +51,7 @@ Done. `FlightDeck/PrivacyInfo.xcprivacy` is in the project (commit `4bda8a2`; th
 - `NSPrivacyCollectedDataTypes` = empty
 - `NSPrivacyAccessedAPITypes` = UserDefaults, reason `CA92.1` (data only this app reads and writes)
 
-**OWNER, after the next upload:** if App Store Connect still emails an ITMS-91053 warning, the manifest did not make it into the bundle; check it in Xcode's file inspector (Target Membership: FlightDeck).
+**OWNER, after the next upload:** if App Store Connect still emails an ITMS-91053 warning, the manifest did not make it into the bundle; check it in Xcode's file inspector (Target Membership: Flight Dash).
 
 ## Privacy policy
 

@@ -1,6 +1,6 @@
-# FlightDeck: App Review and TestFlight Beta Review notes
+# Flight Dash: App Review and TestFlight Beta Review notes
 
-Everything the reviewers are asked for, in paste order. Checked against the code at HEAD of `claude/app-store-prep` on 2026-11-11. Fill every `<<OWNER: …>>` before pasting. If the store name changes, replace "FlightDeck" in the blocks below.
+Everything the reviewers are asked for, in paste order. Checked against the code at HEAD of `claude/app-store-prep` on 2026-11-11. Fill every `<<OWNER: …>>` before pasting. If the store name changes, replace "Flight Dash" in the blocks below.
 
 ## 1. App Review notes
 
@@ -8,7 +8,7 @@ Paste into App Store Connect → (version) → App Review Information → Notes.
 
 ### App Review notes (4000 bytes)
 ```text
-NO SIGN-IN IS NEEDED. FlightDeck has no account system and no server.
+NO SIGN-IN IS NEEDED. Flight Dash has no account system and no server.
 
 HOW TO SEE EVERYTHING (Demo Mode, on by default, about three minutes)
 1. Launch the app. A Welcome sheet explains the sample trip. Tap "Explore the sample trip".
@@ -58,7 +58,7 @@ Paste into TestFlight → Test Information. Same text as `listing.md`.
 **Beta App Description** (paste into "Beta App Description"):
 
 ```text
-FlightDeck tracks the flights you take. Each flight gets a live card with a countdown to the next step, an arrival forecast that shows its working, and a live map of the real aircraft around yours. Every flight you take is added to a Passport of miles, hours, airports and delays.
+Flight Dash tracks the flights you take. Each flight gets a live card with a countdown to the next step, an arrival forecast that shows its working, and a live map of the real aircraft around yours. Every flight you take is added to a Passport of miles, hours, airports and delays.
 
 You need nothing to try it. The app opens in Demo Mode with a sample trip built around the current time. Those flights are made up and labelled Demo Mode on screen; airport status, weather and live aircraft are real.
 
@@ -66,11 +66,11 @@ To add a real flight, tap Add Flight, then Add your real flight, and type it in.
 1. Sign up at rapidapi.com.
 2. Find AeroDataBox and subscribe to the free Basic plan.
 3. Copy your RapidAPI key.
-4. In FlightDeck, open Settings, paste it under Live flight lookups, and turn off Demo Mode.
+4. In Flight Dash, open Settings, paste it under Live flight lookups, and turn off Demo Mode.
 
 Not in this build: Live Activities, widgets, Apple Watch, push notifications. Delay and gate-change alerts need the app open.
 
-Positions on maps are estimates. FlightDeck is not an air-traffic-control tool.
+Positions on maps are estimates. Flight Dash is not an air-traffic-control tool.
 
 Feedback: take a screenshot in the app and choose Send Beta Feedback, or use the TestFlight app. Your feedback goes to the developer's issue tracker.
 ```

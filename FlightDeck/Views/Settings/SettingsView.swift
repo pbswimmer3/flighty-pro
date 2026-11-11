@@ -107,7 +107,7 @@ struct SettingsView: View {
                 } header: {
                     Text("About")
                 } footer: {
-                    Text("FlightDeck is an independent flight tracker. It has no account and no server; your flights stay on this device. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, and flight schedules from AeroDataBox when you add a key. Positions on maps are estimates — this is not an air-traffic-control tool and must never be used for navigation or separation. Not affiliated with any airline or data provider.")
+                    Text("Flight Dash is an independent flight tracker. It has no account and no server; your flights stay on this device. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, and flight schedules from AeroDataBox when you add a key. Positions on maps are estimates — this is not an air-traffic-control tool and must never be used for navigation or separation. Not affiliated with any airline or data provider.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -213,11 +213,11 @@ struct SettingsView: View {
     private var notificationFooter: String {
         switch notifications.authorization {
         case .denied:
-            return "iOS is blocking alerts for FlightDeck. Turn them back on in iOS Settings to get boarding and gate alerts."
+            return "iOS is blocking alerts for Flight Dash. Turn them back on in iOS Settings to get boarding and gate alerts."
         case .notDetermined:
-            return "Boarding, gate-close, departure, landing and baggage alerts are scheduled on your device, so they arrive even when FlightDeck isn't open."
+            return "Boarding, gate-close, departure, landing and baggage alerts are scheduled on your device, so they arrive even when Flight Dash isn't open."
         default:
-            return "Timed alerts (boarding, gate close, departure, landing, bags) are scheduled ahead on your device and arrive with the app closed. Change alerts — a new delay, a gate move, a cancellation — are found when the app refreshes, so open FlightDeck to pick them up. There's no push server behind this app."
+            return "Timed alerts (boarding, gate close, departure, landing, bags) are scheduled ahead on your device and arrive with the app closed. Change alerts — a new delay, a gate move, a cancellation — are found when the app refreshes, so open Flight Dash to pick them up. There's no push server behind this app."
         }
     }
 }

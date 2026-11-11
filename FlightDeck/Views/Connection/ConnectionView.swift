@@ -144,7 +144,7 @@ struct ConnectionView: View {
         ContentUnavailableView {
             Label("Track two flights to analyze a connection", systemImage: "arrow.triangle.branch")
         } description: {
-            Text("Add both legs of your trip in the Flights tab. FlightDeck auto-detects connections and rates your layover risk live.")
+            Text("Add both legs of your trip in the Flights tab. Flight Dash auto-detects connections and rates your layover risk live.")
         }
         .padding(.top, 40)
     }

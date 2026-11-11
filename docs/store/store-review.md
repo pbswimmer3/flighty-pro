@@ -1,5 +1,7 @@
 # FlightDeck store review: listing strategy, copy spec, card spec
 
+> **Update 2026-11-11:** the owner chose the name **Flight Dash** (store name "Flight Dash: Flight Tracker"). Section 2 below is the original analysis.
+
 _Written 2026-11-11 on branch `claude/app-store-prep` by the lead reviewer. Everything below was checked against the code in this worktree (airport counts, data hosts, feature list) and against the `raw-before` captures in `docs/store/raw-before/`. Two agents execute from this file alone: **opus** writes the copy files, **sonnet** writes the scripts and renders the cards. Neither edits this file; both read all of it. File ownership is in section 5 and is disjoint._
 
 Reference for rigour and file layout only (not wording, not visual style): `C:\Users\pradb\AI-Scripts\ride-compare\docs\store\` and `C:\Users\pradb\AI-Scripts\ride-compare\tools\check-listing.mjs`, `make-store-screenshots.mjs`.

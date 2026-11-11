@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-BRAND = "Overwing"
+BRAND = "Flight Dash"
 BUILT = "2026-11-11"  # fixed so output is deterministic
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / "docs" / "store"

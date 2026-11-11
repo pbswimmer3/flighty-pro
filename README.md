@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/screenshots/icon.png" width="96" alt="FlightDeck icon" />
+<img src="docs/screenshots/icon.png" width="96" alt="Flight Dash icon" />
 
-# FlightDeck
+# Flight Dash
 
 **A personal flight tracker for iPhone — live tracking, delay forecasts, and a lifetime Passport.**
 
@@ -27,7 +27,7 @@ No accounts, no subscription, no backend. Open the project, press Run, and it
 works — Demo Mode gives you a live sample trip straight away.
 
 > Inspired by [Flighty](https://flighty.com), which is excellent — go buy it.
-> FlightDeck is an original personal-use app and contains no Flighty code or artwork.
+> Flight Dash is an original personal-use app and contains no Flighty code or artwork.
 
 ---
 
@@ -132,7 +132,7 @@ Pick an iPhone simulator and press **⌘R**. That's it — you need Xcode 16+ an
 
 <br />
 
-1. In Xcode: **FlightDeck** target → **Signing & Capabilities** → tick *Automatically manage signing* and choose your team.
+1. In Xcode: **FlightDeck** target (the code name; the app shows as Flight Dash) → **Signing & Capabilities** → tick *Automatically manage signing* and choose your team.
 2. If the bundle ID collides, change `com.personal.flightdeck` to something unique.
 3. On the phone, turn on **Settings → Privacy & Security → Developer Mode**.
 4. Select your iPhone in the toolbar and press **⌘R**.
@@ -178,7 +178,7 @@ flowchart LR
     DB["adsbdb<br/>callsign → route"] --> App
     Demo["Demo Mode<br/>(default)"] --> App
     ADB["AeroDataBox<br/>🔑 optional key"] -.-> App
-    App(("FlightDeck"))
+    App(("Flight Dash"))
 ```
 
 | Data | Source | Key? |
@@ -241,7 +241,7 @@ major hubs.
 
 ## App Store
 
-Everything needed to list FlightDeck on TestFlight (outside testers) or the App Store: eight 6.9-inch screenshot cards (a 6.5-inch set is in `docs/store/screenshots/6.5/`), listing copy, review notes and privacy answers. The cards are rendered from real simulator captures of Demo Mode.
+Everything needed to list Flight Dash on TestFlight (outside testers) or the App Store: eight 6.9-inch screenshot cards (a 6.5-inch set is in `docs/store/screenshots/6.5/`), listing copy, review notes and privacy answers. The cards are rendered from real simulator captures of Demo Mode.
 
 <div align="center">
 <img src="docs/store/screenshots/6.9/01-your-flight-live.png" width="23%" alt="your flight live">

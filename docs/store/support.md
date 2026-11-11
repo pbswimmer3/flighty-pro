@@ -1,4 +1,4 @@
-# FlightDeck support
+# Flight Dash support
 
 ## Contact
 
@@ -15,7 +15,7 @@
    1. Sign up at rapidapi.com.
    2. Find AeroDataBox and subscribe to the free **Basic** plan.
    3. Copy your RapidAPI key.
-   4. In FlightDeck, open **Settings**, paste it under **Live flight lookups**, and turn off **Demo Mode**.
+   4. In Flight Dash, open **Settings**, paste it under **Live flight lookups**, and turn off **Demo Mode**.
 
 ## Common questions
 
@@ -29,7 +29,7 @@ Add it by hand, or add your free AeroDataBox key (above) and search by flight nu
 Live aircraft positions come from a volunteer receiver network. Big airports are well covered; smaller ones can have gaps. The app says so instead of showing an empty sky.
 
 **An alert didn't arrive for a delay or a gate change.**
-Those are found when the app refreshes, so FlightDeck needs to be open. Boarding, gate-close, departure, landing and baggage alerts are scheduled on your iPhone and arrive with the app closed.
+Those are found when the app refreshes, so Flight Dash needs to be open. Boarding, gate-close, departure, landing and baggage alerts are scheduled on your iPhone and arrive with the app closed.
 
 **The times look wrong.**
 Every time is shown in the airport's own time zone, as on your boarding pass. A departure from New York shows New York time even if you are in London.
@@ -44,15 +44,15 @@ Settings → **Remove All Flights** (this also clears your Passport) and **Clear
 It is stored on this device, in the app's preferences, and is only sent to AeroDataBox with your own lookups. Clear the field in Settings to remove it any time.
 
 **Does it work on iPad, Apple Watch or with widgets?**
-No. FlightDeck is an iPhone app (iOS 17 or later) with no widgets or Watch app.
+No. Flight Dash is an iPhone app (iOS 17 or later) with no widgets or Watch app.
 
 **Does it collect my data?**
 No. There is no account, no server, no analytics and no ads, and the app never asks for your location. See the privacy policy: <<OWNER: privacy policy URL>>.
 
 ## Safety
 
-Positions shown on maps are estimates. FlightDeck is not an air-traffic-control tool and must never be used for navigation or separation.
+Positions shown on maps are estimates. Flight Dash is not an air-traffic-control tool and must never be used for navigation or separation.
 
 ## About
 
-FlightDeck is an independent app. It is not affiliated with, endorsed by or sponsored by any airline, airport or data provider. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, routes from adsbdb, and flight schedules from AeroDataBox when you add your own key.
+Flight Dash is an independent app. It is not affiliated with, endorsed by or sponsored by any airline, airport or data provider. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, routes from adsbdb, and flight schedules from AeroDataBox when you add your own key.

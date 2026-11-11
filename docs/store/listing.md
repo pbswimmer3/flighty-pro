@@ -1,11 +1,11 @@
-# FlightDeck: App Store listing (draft for the owner)
+# Flight Dash: App Store listing (draft for the owner)
 
-> **If the store name changes, replace "FlightDeck" in these fields:** Description, What's New, Beta App Description, What to Test (and the App Review notes in `review-notes.md`). Name, Subtitle, Promotional text and Keywords do not contain it.
+> **Name chosen by the owner (2026-11-11): Flight Dash.** Home Screen name "Flight Dash"; store name "Flight Dash: Flight Tracker". The Xcode target, folders and bundle id keep the code name `FlightDeck` / `com.personal.flightdeck` (users never see them).
 
 Everything App Store Connect asks for on the product page and in TestFlight, ready to paste. Written 2026-11-11 on branch `claude/app-store-prep`, against version 1.0 (build number set by Codemagic per upload). Bundle id `com.personal.flightdeck`, ASC app id 6828448145, iPhone only, iOS 17+.
 
 - Each field sits under a `### <Field> (<limit>)` heading, in a `text` block holding exactly what you paste. Counts are checked by `python scripts/check_listing.py` and rewritten by `python scripts/check_listing.py --write`. Do not edit a count by hand.
-- Body copy says "FlightDeck" because that is the Home Screen name today (`CFBundleDisplayName`). The store name is the owner's decision (see "Name" and `store-review.md` section 2).
+- Body copy says "Flight Dash", the Home Screen name (`CFBundleDisplayName`).
 - Items marked **OWNER** need a login, a decision or a real iPhone.
 - Card images are built by `python scripts/make_store_cards.py` (see "Screenshots").
 
@@ -26,26 +26,17 @@ How they were applied: no other flight app and no airline is named in the name, 
 
 ## Name
 
-**OWNER decides.** "FlightDeck - Flight Tracker" (id 6759628645, JAC LLC) is already a flight tracker on the store, so a plain "FlightDeck" name is a Guideline 4.1 / 5.2.1 risk. The ASC record is "Prad's Flight Deck" for now. Check a name by saving it in App Store Connect (a taken name is rejected at once) and with a USPTO trademark search.
+**Chosen by the owner: Flight Dash** (2026-11-11). "FlightDeck - Flight Tracker" (id 6759628645, JAC LLC) already exists, so the code name was not used. An App Store search for "Flight Dash" on 2026-11-11 (US, UK, CA, AU, IN, DE, JP) found no app with that name. Final check: App Store Connect rejects a taken name when you save it; a USPTO trademark search is still worth a minute.
 
-Recommended:
 
 ### Name (30)
 ```text
-Overwing: Flight Tracker
+Flight Dash: Flight Tracker
 ```
 
 Count: **24 / 30 characters**
 
-Ranked alternatives (counts computed with Python):
-
-| Rank | Name | Count | Notes |
-| --- | --- | --- | --- |
-| 1 | Overwing: Flight Tracker | 24 / 30 | Aviation word (the overwing exit), short, no app found on 2026-11-11. Home Screen name "Overwing". |
-| 2 | Holdshort: Flight Tracker | 25 / 30 | "Hold short" is a taxiway instruction. No app found; a little more obscure. |
-| 3 | FlightDeck: Flights & Passport | 30 / 30 | Keeps today's name. Only if ASC accepts it and the owner accepts the 4.1 risk. Fine for TestFlight if the rename is deferred. |
-
-Not recommended: "Tailfin" (cycling brand), anything with "Radar", any other app's or airline's name.
+Earlier candidates (not used): Overwing: Flight Tracker, Holdshort: Flight Tracker (see `store-review.md` section 2).
 
 ## Subtitle
 
@@ -77,7 +68,7 @@ Count: **168 / 170 characters**
 
 ### Description (4000)
 ```text
-Your flight, live, with a forecast that shows its working and a Passport that writes itself. FlightDeck is free: no account, no subscription, no server, and your flights stay on this iPhone.
+Your flight, live, with a forecast that shows its working and a Passport that writes itself. Flight Dash is free: no account, no subscription, no server, and your flights stay on this iPhone.
 
 YOUR FLIGHT, LIVE
 • A card per flight with status, progress and a countdown to the next step.
@@ -120,9 +111,9 @@ PRIVATE BY DESIGN
 GOOD TO KNOW
 • iPhone, iOS 17 or later. FAA programs are US-only. Live aircraft coverage varies.
 
-Positions shown on maps are estimates. FlightDeck is not an air-traffic-control tool and must never be used for navigation or separation.
+Positions shown on maps are estimates. Flight Dash is not an air-traffic-control tool and must never be used for navigation or separation.
 
-FlightDeck is an independent app. It is not affiliated with, endorsed by or sponsored by any airline, airport or data provider. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, routes from adsbdb, and flight schedules from AeroDataBox when you add your own key.
+Flight Dash is an independent app. It is not affiliated with, endorsed by or sponsored by any airline, airport or data provider. Airport status comes from the FAA, weather from NOAA, live aircraft positions from the adsb.lol community network, routes from adsbdb, and flight schedules from AeroDataBox when you add your own key.
 ```
 
 Count: **3492 / 4000 characters**
@@ -144,7 +135,7 @@ Apple does not show this for a first version. Kept for 1.0.1, or in case App Sto
 
 ### What's New (4000)
 ```text
-The first release of FlightDeck. Track your flights live with a countdown to boarding, an arrival forecast that shows its working, real aircraft around you on the map, connection ratings, airport status and weather, and a Passport built from the flights you take. It opens in Demo Mode with a sample trip, so there is nothing to set up.
+The first release of Flight Dash. Track your flights live with a countdown to boarding, an arrival forecast that shows its working, real aircraft around you on the map, connection ratings, airport status and weather, and a Passport built from the flights you take. It opens in Demo Mode with a sample trip, so there is nothing to set up.
 ```
 
 Count: **336 / 4000 characters**
@@ -155,7 +146,7 @@ Paste into TestFlight → (the app) → Test Information. Both texts are repeate
 
 ### Beta App Description (4000)
 ```text
-FlightDeck tracks the flights you take. Each flight gets a live card with a countdown to the next step, an arrival forecast that shows its working, and a live map of the real aircraft around yours. Every flight you take is added to a Passport of miles, hours, airports and delays.
+Flight Dash tracks the flights you take. Each flight gets a live card with a countdown to the next step, an arrival forecast that shows its working, and a live map of the real aircraft around yours. Every flight you take is added to a Passport of miles, hours, airports and delays.
 
 You need nothing to try it. The app opens in Demo Mode with a sample trip built around the current time. Those flights are made up and labelled Demo Mode on screen; airport status, weather and live aircraft are real.
 
@@ -163,11 +154,11 @@ To add a real flight, tap Add Flight, then Add your real flight, and type it in.
 1. Sign up at rapidapi.com.
 2. Find AeroDataBox and subscribe to the free Basic plan.
 3. Copy your RapidAPI key.
-4. In FlightDeck, open Settings, paste it under Live flight lookups, and turn off Demo Mode.
+4. In Flight Dash, open Settings, paste it under Live flight lookups, and turn off Demo Mode.
 
 Not in this build: Live Activities, widgets, Apple Watch, push notifications. Delay and gate-change alerts need the app open.
 
-Positions on maps are estimates. FlightDeck is not an air-traffic-control tool.
+Positions on maps are estimates. Flight Dash is not an air-traffic-control tool.
 
 Feedback: take a screenshot in the app and choose Send Beta Feedback, or use the TestFlight app. Your feedback goes to the developer's issue tracker.
 ```
@@ -281,7 +272,7 @@ The icon ships inside the build (asset catalog, regenerated by `scripts/make_ico
 
 ## Decisions made for the owner (all reversible)
 
-1. Recommended store name "Overwing: Flight Tracker"; body copy says "FlightDeck" until the name is settled (one find-and-replace, fields listed at the top).
+1. Store name "Flight Dash: Flight Tracker" (owner, 2026-11-11). Set it in App Store Connect → App Information → Name.
 2. Subtitle "Live map, delay odds, Passport"; keywords chosen to avoid every word in all three name options and that subtitle.
 3. Travel primary, Utilities secondary.
 4. The "late inbound aircraft" forecast factor is left out of the copy: inbound-flight data only exists in Demo Mode today, so it would not be true for a real flight.

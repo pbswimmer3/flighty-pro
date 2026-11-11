@@ -17,7 +17,7 @@ struct WelcomeView: View {
                         .scaledFont(72, design: .default)
                         .foregroundStyle(Theme.accent)
                         .accessibilityHidden(true)
-                    Text("Welcome to FlightDeck")
+                    Text("Welcome to Flight Dash")
                         .scaledFont(28, weight: .heavy)
                         .multilineTextAlignment(.center)
                         .accessibilityAddTraits(.isHeader)

@@ -54,7 +54,7 @@ struct AddFlightView: View {
                     if isDemo {
                         Text("Demo Mode is on, so any number you search returns a sample flight with made-up times. To add a real flight, use *Add your real flight* above, or add a free AeroDataBox key in Settings.")
                     } else if isBeyondLiveWindow, daysAhead > 0 {
-                        Text("That's \(daysAhead) days out. If the live feed doesn't have that date yet, FlightDeck copies this week's timetable for the same flight and confirms it automatically once it's within \(AeroDataBoxProvider.liveWindowDays) days.")
+                        Text("That's \(daysAhead) days out. If the live feed doesn't have that date yet, Flight Dash copies this week's timetable for the same flight and confirms it automatically once it's within \(AeroDataBoxProvider.liveWindowDays) days.")
                     } else if isBeyondLiveWindow {
                         Text("That's \(-daysAhead) days ago. How far back lookups reach depends on your AeroDataBox plan — if it isn't found, add it manually below.")
                     }

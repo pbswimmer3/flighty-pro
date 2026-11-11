@@ -1,8 +1,8 @@
-# FlightDeck Privacy Policy
+# Flight Dash Privacy Policy
 
 Effective date: 2026-11-11
 
-FlightDeck is a flight tracker for iPhone. It has no account, no analytics and no server of its own. The developer does not collect, receive or sell any data about you.
+Flight Dash is a flight tracker for iPhone. It has no account, no analytics and no server of its own. The developer does not collect, receive or sell any data about you.
 
 ## What stays on your device
 
@@ -14,7 +14,7 @@ None of this is sent to the developer. To delete it, use Settings, then Remove A
 
 ## Who the app talks to
 
-FlightDeck contacts these services directly from your device. They see your IP address and the request itself, under their own privacy policies.
+Flight Dash contacts these services directly from your device. They see your IP address and the request itself, under their own privacy policies.
 
 - FAA National Airspace System Status (nasstatus.faa.gov): airport delay status.
 - NOAA Aviation Weather Center (aviationweather.gov): airport weather (METAR), sent an airport code.

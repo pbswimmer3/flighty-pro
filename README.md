@@ -241,15 +241,18 @@ major hubs.
 
 ## App Store
 
-Store assets for FlightDeck: screenshot cards (built from simulator captures), listing copy, and review material.
+Everything needed to list FlightDeck on TestFlight (outside testers) or the App Store: eight 6.9-inch screenshot cards (a 6.5-inch set is in `docs/store/screenshots/6.5/`), listing copy, review notes and privacy answers. The cards are rendered from real simulator captures of Demo Mode.
 
 <div align="center">
-<img src="docs/store/screenshots/6.9/01-your-flight-live.png" width="15%">
-<img src="docs/store/screenshots/6.9/02-every-flight-one-glance.png" width="15%">
-<img src="docs/store/screenshots/6.9/03-who-is-around-you.png" width="15%">
-<img src="docs/store/screenshots/6.9/04-will-you-make-it.png" width="15%">
-<img src="docs/store/screenshots/6.9/05-passport.png" width="15%">
-<img src="docs/store/screenshots/6.9/06-airport-status.png" width="15%">
+<img src="docs/store/screenshots/6.9/01-your-flight-live.png" width="23%" alt="your flight live">
+<img src="docs/store/screenshots/6.9/02-every-flight-one-glance.png" width="23%" alt="every flight one glance">
+<img src="docs/store/screenshots/6.9/03-who-is-around-you.png" width="23%" alt="who is around you">
+<img src="docs/store/screenshots/6.9/04-will-you-make-it.png" width="23%" alt="will you make it">
+<br />
+<img src="docs/store/screenshots/6.9/05-passport.png" width="23%" alt="passport">
+<img src="docs/store/screenshots/6.9/06-airport-status.png" width="23%" alt="airport status">
+<img src="docs/store/screenshots/6.9/07-taxiway.png" width="23%" alt="taxiway">
+<img src="docs/store/screenshots/6.9/08-every-minute-lost.png" width="23%" alt="every minute lost">
 </div>
 
 | What | Where |
@@ -261,4 +264,5 @@ Store assets for FlightDeck: screenshot cards (built from simulator captures), l
 | Privacy policy | [docs/privacy-policy.md](docs/privacy-policy.md) |
 | UI review | [docs/ui-review.md](docs/ui-review.md) |
 | Store strategy and card spec | [docs/store/store-review.md](docs/store/store-review.md) |
-| Regenerate | `python scripts/capture_screens.py` then `python scripts/make_store_cards.py` then `python scripts/check_listing.py` |
+| Regenerate | `python scripts/capture_screens.py --branch <branch> --out docs/store/raw` (Codemagic simulator), then `python scripts/make_store_cards.py`, then `python scripts/check_listing.py` |
+| Share image, contact sheet | [share-image.png](docs/store/share-image.png) · [contact-sheet.png](docs/store/contact-sheet.png) |

@@ -1,0 +1,16 @@
+{
+  "app_name": "FlightDeck",
+  "app_description": "FlightDeck, the SwiftUI iOS app in this repository",
+  "stack": "native",
+  "editable": [
+    "FlightDeck/"
+  ],
+  "protected": [],
+  "app_skill": ".claude/skills/flightdeck/SKILL.md",
+  "verify_workflow": "",
+  "check_note": "check Codemagic's compile check",
+  "build_note": "You cannot build here (Linux, no Xcode). A compile check runs on the pull request, so re-read every edit for Swift correctness: types, optionals, missing imports, exhaustive switches. Test code must compile too. Do not update status or brief files (STATE.md, BRIEF.md, changelogs), even if CLAUDE.md asks every session to.",
+  "bundle_id": "com.personal.flightdeck",
+  "relay_name": "flightdeck-feedback-relay",
+  "pipeline_version": "1.0.0"
+}

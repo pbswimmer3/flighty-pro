@@ -1,4 +1,4 @@
-// FlightDeck feedback relay — a Cloudflare Worker.
+// TestFlight feedback relay — a Cloudflare Worker.
 //
 // App Store Connect can POST a webhook the moment a TestFlight tester submits
 // feedback, but it can't add the auth header GitHub requires to start a
@@ -38,7 +38,7 @@ const ID_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$/;
 export default {
   async fetch(request, env) {
     if (request.method !== "POST") {
-      return text(405, "FlightDeck feedback relay: POST only.");
+      return text(405, "TestFlight feedback relay: POST only.");
     }
     if (!env.APPLE_WEBHOOK_SECRET) {
       return text(500, "Relay is missing APPLE_WEBHOOK_SECRET.");
@@ -138,7 +138,7 @@ async function dispatchWorkflow(env, feedback) {
       Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "flightdeck-feedback-relay",
+      "User-Agent": "testflight-feedback-relay",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

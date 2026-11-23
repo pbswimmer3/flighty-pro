@@ -22,6 +22,8 @@ Connect token. Subcommands:
                     points at the relay, ping it, and wait for the result.
   deliveries        Show the webhook's most recent deliveries — the first
                     place to look when feedback doesn't trigger a run.
+  alert             Say so on GitHub when `collect` fails, so a broken
+                    pipeline is never silent: one "needs attention" issue.
 
 Environment:
   ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY   App Store Connect API key
@@ -58,9 +60,30 @@ ASC_API = "https://api.appstoreconnect.apple.com"
 GITHUB_API = "https://api.github.com"
 
 LABEL = "testflight-feedback"
+ALERT_LABEL = "testflight-pipeline"
+ALERT_TITLE = "TestFlight feedback pipeline needs attention"
 ASSETS_BRANCH = "testflight-feedback-assets"
 WORK_DIR = Path(".testflight-feedback")
-WEBHOOK_NAME = "FlightDeck feedback relay"
+
+# Per-repo settings, written by the set-up-auto-testflight skill. Everything else in
+# this file is the same in every repo that uses the pipeline.
+CONFIG_FILE = Path(".github/testflight-feedback.json")
+
+
+def _load_config() -> dict:
+    try:
+        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+
+
+CONFIG = _load_config()
+APP_NAME = CONFIG.get("app_name") or "the app"
+STACK = CONFIG.get("stack") or ""
+WEBHOOK_NAME = CONFIG.get("webhook_name") or f"{APP_NAME} feedback relay"
+# Run after a PR is opened or updated, for checks that are GitHub Actions
+# workflows (a PR opened with GITHUB_TOKEN doesn't trigger pull_request runs).
+VERIFY_WORKFLOW = CONFIG.get("verify_workflow") or ""
 WEBHOOK_EVENTS = [
     "BETA_FEEDBACK_SCREENSHOT_SUBMISSION_CREATED",
     "BETA_FEEDBACK_CRASH_SUBMISSION_CREATED",
@@ -73,7 +96,7 @@ KINDS = {
 
 # The only places a feedback-driven change may land. Everything else in a
 # patch is dropped and named in the PR.
-ALLOWED = ("FlightDeck/", "docs/", ".claude/skills/")
+ALLOWED = tuple(CONFIG.get("editable") or ("docs/", ".claude/skills/"))
 
 # Checked as well, in case an allowlist entry is ever widened: these steer CI,
 # secrets, signing, or every future Claude session in this repo.
@@ -82,8 +105,6 @@ PROTECTED = (
     "relay/",
     "scripts/",
     "codemagic.yaml",
-    "FlightDeck.xcodeproj/",
-    "FlightDeck.xcworkspace/",
     ".claude/settings",
     ".claude/commands/",
     ".claude/agents/",
@@ -91,7 +112,35 @@ PROTECTED = (
     ".mcp.json",
     ".gitattributes",
     ".gitmodules",
-)
+) + tuple(CONFIG.get("protected") or ())
+
+# Protected wherever they sit: build, signing and store configuration, and
+# the files that steer every future Claude session or npm install.
+PROTECTED_NAMES = ("eas.json", "app.json", "app.config.js", "app.config.ts", "credentials.json",
+                   "Podfile", "Podfile.lock", "codemagic.yaml", "project.yml",
+                   "CLAUDE.md", "AGENTS.md", ".mcp.json", ".npmrc", ".yarnrc", ".yarnrc.yml", ".env",
+                   # Dependency changes need an install the fix job can't run.
+                   "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
+                   "Package.resolved", "pubspec.yaml", "pubspec.lock",
+                   # Run at build or install time, or hide a diff from review.
+                   "Package.swift", ".gitattributes", "app.plugin.js")
+PROTECTED_SUFFIXES = (".xcodeproj/", ".xcworkspace/", ".entitlements", ".mobileprovision", ".p8", ".p12",
+                      ".podspec", ".gradle", ".gradle.kts")
+# Folders protected at any depth below the top (`app/.claude/…`,
+# `app/.eas/workflows/…`). At the top level PROTECTED above decides, so a repo
+# can still list `.claude/skills/` as editable.
+PROTECTED_NESTED = (".claude", ".eas", ".github", ".git", ".expo")
+# Code no JavaScript check compiles. In an Expo app a fix that touches it is
+# flagged on the pull request: it needs a real build before it can be trusted.
+NATIVE_SUFFIXES = (".swift", ".m", ".mm", ".h", ".kt", ".java", ".gradle", ".podspec")
+# Why a fix job died, as written by the workflow (never by Claude).
+FIX_FAILURES = {
+    "auth": "Claude couldn't sign in: it stopped after one turn at no cost. The Claude token secret "
+            "(`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) is wrong or expired, or the plan's usage "
+            "limit is used up for now.",
+    "max_turns": "Claude ran out of turns before finishing.",
+    "error": "The fix job failed before producing a result.",
+}
 
 # Anything shaped like these never leaves the fix job: not in a commit, not in
 # a comment. The fix job holds the Claude credential, and its summary is
@@ -118,6 +167,7 @@ class HTTPError(RuntimeError):
     def __init__(self, status: int, url: str, body: str):
         super().__init__(f"HTTP {status} from {url}: {body[:500]}")
         self.status = status
+        self.url = url
         self.body = body
 
 
@@ -283,7 +333,7 @@ def fetch_crash_log(asc: AppStoreConnect, submission_id: str) -> str:
 def download(url: str, width: int | None = None, height: int | None = None) -> bytes:
     # Some App Store Connect image URLs are templates ("…/{w}x{h}bb.{f}").
     url = url.replace("{w}", str(width or 1290)).replace("{h}", str(height or 2796)).replace("{f}", "png")
-    _, data = http("GET", url, {"User-Agent": "flightdeck-feedback"})
+    _, data = http("GET", url, {"User-Agent": "testflight-feedback"})
     return data
 
 
@@ -307,7 +357,7 @@ class GitHub:
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "flightdeck-feedback",
+            "User-Agent": "testflight-feedback",
         }
 
     def call(self, method: str, path: str, payload=None, params: dict | None = None):
@@ -477,7 +527,8 @@ def issue_body(submission: dict, images: list[str], withheld: int, crash_log: st
         parts += ["", "<details><summary>Crash log</summary>", "", "```", shown, "```", note, "</details>"]
     parts += ["", "---",
               "_Filed automatically from TestFlight. Claude is working on a fix — a pull request "
-              "will be linked here. Reply `@claude …` to send it back with more detail._"]
+              "will be linked here. To send it back with more detail, the repository owner replies "
+              "with a comment that **starts with** `@claude` (any other comment is ignored)._"]
     return "\n".join(parts) + "\n"
 
 
@@ -596,6 +647,7 @@ def collect(args) -> int:
     github = GitHub(env("GITHUB_TOKEN"), env("GITHUB_REPOSITORY"))
     items: list[dict] = []
     failures = 0
+    problem = ""
     try:
         if args.issue:
             items.append(redo_issue(asc, github, args.issue))
@@ -631,11 +683,75 @@ def collect(args) -> int:
                 # One bad submission must not strand the ones already filed:
                 # those still go on to the fix job.
                 failures += 1
+                problem = classify_problem(error)
                 print(f"::error::{submission['id']}: {error}", file=sys.stderr)
         print(f"Filed {len(items)} new issue(s).")
         return 1 if failures and not items else 0
+    except Exception as error:
+        problem = classify_problem(error)
+        raise
     finally:
         write_output("items", json.dumps(items))
+        if problem:
+            write_output("problem", problem)
+
+
+def classify_problem(error: Exception) -> str:
+    """A short, fixed-vocabulary class for the alert job. Never free text: it
+    travels between jobs and ends up in an issue."""
+    if isinstance(error, HTTPError):
+        url = error.url
+        service = "asc" if "appstoreconnect.apple.com" in url else "github" if "api.github.com" in url else "http"
+        return f"{service}-{error.status}"
+    return "error-" + re.sub(r"[^A-Za-z]", "", type(error).__name__)[:40]
+
+
+PROBLEM_HINTS = {
+    "asc-401": "App Store Connect rejected the API key. The key was revoked, or the `ASC_KEY_ID`, "
+               "`ASC_ISSUER_ID` and `ASC_PRIVATE_KEY` secrets don't belong together.",
+    "asc-403": "App Store Connect refused the request. Most often an Apple agreement is waiting to be "
+               "accepted (developer.apple.com → Agreements; account holder only), or the API key's role "
+               "can't read TestFlight feedback. A single failure that clears by the next run was Apple's side.",
+    "asc-404": "App Store Connect doesn't know this feedback or app: the submission was deleted, or "
+               "`ASC_APP_ID` is wrong.",
+    "github-403": "This workflow's token was refused by GitHub: a job is missing a permission "
+                  "(update the pipeline files).",
+}
+
+
+def alert(args) -> int:
+    """Called by the workflow when `collect` fails. Comments on one open
+    "needs attention" issue (creating it if needed), and on the feedback issue
+    when a redo was what failed."""
+    github = GitHub(env("GITHUB_TOKEN"), env("GITHUB_REPOSITORY"))
+    problem = args.problem if re.fullmatch(r"[a-z]+-[A-Za-z0-9]{1,40}", args.problem or "") else "unknown"
+    hint = PROBLEM_HINTS.get(problem) or (
+        "App Store Connect is having trouble; the next run usually succeeds."
+        if re.fullmatch(r"asc-5\d\d", problem) else "See the workflow run for the error.")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    link = f"[Workflow run]({run_url()})"
+    if args.issue:
+        github.call("POST", f"/issues/{args.issue}/comments", {
+            "body": f"This run didn't start: collecting the feedback failed (`{problem}`). {hint}\n\n{link}"})
+    try:
+        github.call("POST", "/labels", {"name": ALERT_LABEL, "color": "b60205",
+                                        "description": "The TestFlight feedback pipeline itself is failing"})
+    except HTTPError as error:
+        if error.status != 422:  # 422 = already exists
+            raise
+    text = f"**{stamp}**: collecting feedback failed (`{problem}`). {hint}\n\n{link}"
+    existing = github.call("GET", "/issues", params={"labels": ALERT_LABEL, "state": "open", "per_page": "1"})
+    if existing:
+        github.call("POST", f"/issues/{existing[0]['number']}/comments", {"body": text})
+        print(f"Commented on #{existing[0]['number']}")
+        return 0
+    issue = github.call("POST", "/issues", {
+        "title": ALERT_TITLE, "labels": [ALERT_LABEL],
+        "body": "New TestFlight feedback is not being picked up. Each failure adds a comment below; close "
+                "this issue once a run succeeds again.\n\n" + text + "\n\nHow to check every part: the "
+                "table at the end of `docs/feedback-autofix.md`."})
+    print(f"Opened #{issue['number']}")
+    return 0
 
 
 # --------------------------------------------------------------- publish ---
@@ -647,7 +763,13 @@ def git(*args: str, check: bool = True) -> str:
 
 
 def is_protected(path: str) -> bool:
-    return any(path == p.rstrip("/") or path.startswith(p) for p in PROTECTED)
+    if any(path == p.rstrip("/") or path.startswith(p) for p in PROTECTED):
+        return True
+    if any(part in PROTECTED_NESTED for part in path.split("/")[1:-1]):
+        return True
+    if path.rsplit("/", 1)[-1] in PROTECTED_NAMES:
+        return True
+    return any(s in path + "/" if s.endswith("/") else path.endswith(s) for s in PROTECTED_SUFFIXES)
 
 
 def is_allowed(path: str) -> bool:
@@ -679,7 +801,7 @@ def patch_entries(patch: str) -> list[dict]:
 
 def split_patch(patch: str) -> tuple[list[str], list[str]]:
     """(paths to apply, paths to drop). An entry is applied only if every path
-    it names is allowed: a rename from a protected file into FlightDeck/ is
+    it names is allowed: a rename from a protected file into an allowed folder is
     dropped whole, never applied as "add the new name" while git quietly
     deletes the old one."""
     keep: set[str] = set()
@@ -728,8 +850,7 @@ def _publish(args, github: GitHub, tell_issue) -> int:
     bundle = Path(args.bundle)
     patch_file = bundle / "patch.diff"
     if not patch_file.exists():
-        tell_issue("The fix job didn't produce a result (it may have failed or run out of turns). "
-                   "Reply `@claude try again` to retry.")
+        tell_issue(fix_failure(bundle) + " Reply `@claude try again` to retry.")
         return 1
 
     title, summary = read_summary(bundle, args.issue)
@@ -754,6 +875,7 @@ def _publish(args, github: GitHub, tell_issue) -> int:
         note = ("\n\n> [!WARNING]\n> Left out because feedback-driven changes may only touch "
                 + ", ".join(f"`{a}`" for a in ALLOWED) + " (and never as symlinks): "
                 + ", ".join(f"`{p}`" for p in dropped))
+    note += native_note(allowed)
     if not allowed:
         tell_issue(f"Claude's change only touched paths it isn't allowed to change, so nothing "
                    f"was committed.\n\n{summary}{note}")
@@ -781,14 +903,15 @@ def _publish(args, github: GitHub, tell_issue) -> int:
         git("push", "--quiet", "--force", "origin", f"HEAD:refs/heads/{args.branch}")
 
     body = (f"{summary}{note}\n\n---\nFixes #{args.issue} — filed from TestFlight feedback "
-            f"`{args.id}`.\n\nWritten by Claude from the tester's report. It couldn't build iOS, so "
-            f"**check Codemagic's compile check** and try it on a phone before merging. "
+            f"`{args.id}`.\n\nWritten by Claude from the tester's report. It couldn't build the app, so "
+            f"**{check_note()}** and try it on a phone before merging. "
             f"Reply `@claude …` here to send it back with changes.\n\n[Workflow run]({run_url()})")
     existing = github.open_pr_for(args.branch)
     if existing:
         github.call("POST", f"/issues/{existing['number']}/comments",
                     {"body": f"**Updated:** {title}\n\n{summary}{note}\n\n[Workflow run]({run_url()})"})
         print(f"Updated PR #{existing['number']}")
+        dispatch_verify(github, args.branch)
         return 0
     try:
         pr = github.call("POST", "/pulls", {"title": title, "head": args.branch,
@@ -804,7 +927,51 @@ def _publish(args, github: GitHub, tell_issue) -> int:
         pass  # the label is a convenience; the PR stands without it
     github.call("POST", f"/issues/{args.issue}/comments", {"body": f"Proposed fix: #{pr['number']} — {title}"})
     print(f"Opened PR #{pr['number']}")
+    dispatch_verify(github, args.branch)
     return 0
+
+
+def fix_failure(bundle: Path) -> str:
+    """Why there is no patch. The reason file comes from the job that ran
+    Claude, so only the known codes are believed."""
+    reason_file = bundle / "FAILURE.txt"
+    code = reason_file.read_text(errors="replace").strip() if reason_file.exists() else ""
+    return FIX_FAILURES.get(code) or "The fix job didn't produce a result (it may have failed or run out of turns)."
+
+
+def native_note(paths: list[str]) -> str:
+    """In an Expo app the pull-request check is TypeScript only: say so when a
+    fix reaches into native code, which only a real build compiles."""
+    native = [p for p in paths if p.endswith(NATIVE_SUFFIXES)]
+    if STACK != "expo" or not native:
+        return ""
+    return ("\n\n> [!CAUTION]\n> This change touches native code that no check on this pull request "
+            "compiles: " + ", ".join(f"`{p}`" for p in native) + ". Make a new build and try it on a phone "
+            "before merging; a JavaScript-only update will not include it.")
+
+
+def check_note() -> str:
+    if CONFIG.get("check_note"):
+        return CONFIG["check_note"]
+    if VERIFY_WORKFLOW:
+        return f"check the `{VERIFY_WORKFLOW}` run on this PR"
+    return "check the PR's compile check"
+
+
+def dispatch_verify(github: "GitHub", branch: str):
+    """Start the repo's own check workflow on the fix branch.
+
+    A PR opened with GITHUB_TOKEN doesn't start pull_request workflows, but a
+    workflow_dispatch it sends does. The run's checks show on the PR's commit.
+    """
+    if not VERIFY_WORKFLOW:
+        return
+    try:
+        github.call("POST", f"/actions/workflows/{VERIFY_WORKFLOW}/dispatches", {"ref": branch})
+        print(f"Started {VERIFY_WORKFLOW} on {branch}")
+    except HTTPError as error:
+        print(f"::warning::Couldn't start {VERIFY_WORKFLOW} on {branch} (HTTP {error.status}). "
+              f"It needs a workflow_dispatch trigger, and this job needs actions: write.", file=sys.stderr)
 
 
 def run_url() -> str:
@@ -870,7 +1037,7 @@ def deliveries(args) -> int:
     asc = asc_from_env()
     match = find_webhook(asc, env("ASC_APP_ID"))
     if not match:
-        print("No FlightDeck webhook is registered. Run the setup workflow with action `register`.")
+        print(f"No {APP_NAME} webhook is registered. Run the setup workflow with action `register`.")
         return 1
     print(f"Webhook {match['id']} → {(match.get('attributes') or {}).get('url')}\n")
     print_deliveries(fetch_deliveries(asc, match["id"]))
@@ -912,6 +1079,17 @@ def print_deliveries(rows: list[dict]):
     for r in rows[:10]:
         print(f"{r['created']}  {r['state']:9}  HTTP {r['status'] if r['status'] is not None else '-'}  "
               f"{r['event']}  {r['error']}")
+
+
+def find_app(args) -> int:
+    asc = asc_from_env()
+    apps = asc.get("/v1/apps", {"filter[bundleId]": args.bundle_id}).get("data", [])
+    exact = [a for a in apps if (a.get("attributes") or {}).get("bundleId") == args.bundle_id]
+    if not exact:
+        print(f"No App Store Connect app has bundle ID {args.bundle_id}.", file=sys.stderr)
+        return 1
+    print(exact[0]["id"])
+    return 0
 
 
 # ------------------------------------------------------------------ main ---
@@ -962,6 +1140,15 @@ def main(argv=None) -> int:
 
     d = sub.add_parser("deliveries")
     d.set_defaults(func=deliveries)
+
+    a = sub.add_parser("alert", help="report a failed collect on GitHub")
+    a.add_argument("--problem", default="")
+    a.add_argument("--issue", type=int, default=0)
+    a.set_defaults(func=alert)
+
+    f = sub.add_parser("find-app", help="print the numeric Apple ID for a bundle ID (setup helper)")
+    f.add_argument("--bundle-id", required=True)
+    f.set_defaults(func=find_app)
 
     args = parser.parse_args(argv)
     return args.func(args)

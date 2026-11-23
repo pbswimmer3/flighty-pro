@@ -1,5 +1,4 @@
-# Tests for the feedback pipeline itself (relay + script). The iOS app is
-# compile-checked by Codemagic, not here.
+# Tests for the feedback pipeline itself (relay + script), not for the app.
 name: Feedback pipeline tests
 
 on:

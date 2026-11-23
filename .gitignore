@@ -5,3 +5,7 @@ xcuserdata/
 # TestFlight feedback working files (scripts/testflight_feedback.py)
 .testflight-feedback/
 __pycache__/
+
+# TestFlight feedback pipeline
+relay/node_modules/
+relay/.wrangler/

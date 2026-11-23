@@ -17,7 +17,7 @@ on:
         options: [register, deliveries]
         default: register
       relay_url:
-        description: "register only: the relay's URL, e.g. https://flightdeck-feedback-relay.NAME.workers.dev"
+        description: "register only: the relay's URL, e.g. https://REPO-testflight-relay.NAME.workers.dev"
         required: false
         default: ""
 

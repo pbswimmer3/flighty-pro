@@ -3,8 +3,9 @@
 # wrong on the Ground tab", "@claude try again" — and the fix runs again with
 # your comments as context, building on the existing branch.
 #
-# Only comments from the repository owner count: this repo is public, and
-# anyone else's comment must not be able to start a Claude run.
+# Only comments from the repository owner count, and only ones that START
+# with "@claude": nobody else's comment may start a Claude run, and your own
+# ordinary comments shouldn't.
 name: TestFlight feedback follow-up
 
 on:
